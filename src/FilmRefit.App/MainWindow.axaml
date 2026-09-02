@@ -1,0 +1,251 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:FilmRefit.App.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="1480" d:DesignHeight="920"
+        x:Class="FilmRefit.App.MainWindow"
+        x:Name="Root"
+        x:DataType="vm:MainWindowViewModel"
+        Title="FilmRefit"
+        Width="1480"
+        Height="920"
+        MinWidth="1120"
+        MinHeight="720">
+  <Window.Resources>
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#101114"/>
+    <SolidColorBrush x:Key="PanelBrush" Color="#171A20"/>
+    <SolidColorBrush x:Key="PanelAltBrush" Color="#20242B"/>
+    <SolidColorBrush x:Key="BorderBrushMuted" Color="#343A44"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F5F5F2"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#BEC3C9"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#858D99"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#7FC7B1"/>
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#5DA891"/>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
+      <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}"/>
+    </Style>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+      <Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="{StaticResource PanelBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushMuted}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="8"/>
+    </Style>
+    <Style Selector="Border.clip">
+      <Setter Property="Background" Value="{StaticResource PanelAltBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrushMuted}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="7"/>
+      <Setter Property="Padding" Value="8"/>
+    </Style>
+    <Style Selector="Border.clip.open">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="Padding" Value="14,7"/>
+      <Setter Property="Background" Value="#242932"/>
+      <Setter Property="BorderBrush" Value="#3B434F"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+      <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+      <Setter Property="Foreground" Value="#0C1210"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Button.primary:pressed">
+      <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentPressedBrush}"/>
+    </Style>
+    <Style Selector="Button.flat">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
+    <Style Selector="ComboBox, TextBox">
+      <Setter Property="Background" Value="#11141A"/>
+      <Setter Property="BorderBrush" Value="#343A44"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+      <Setter Property="CornerRadius" Value="6"/>
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*,220" Background="{StaticResource AppBackgroundBrush}">
+    <Border Padding="20,14" Background="#15181E">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
+        <StackPanel>
+          <TextBlock Text="FilmRefit" FontSize="25" FontWeight="SemiBold"/>
+          <TextBlock Text="{Binding RuntimeText}" Classes="muted"/>
+        </StackPanel>
+        <Button Grid.Column="1" Content="Load files" Command="{Binding AddFilesCommand}"/>
+        <Button Grid.Column="2" Content="Load directory" Command="{Binding AddDirectoryCommand}"/>
+        <Button Grid.Column="3" Content="Load recursive" Command="{Binding AddDirectoryRecursiveCommand}"/>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" Margin="14" ColumnDefinitions="470,*,250" ColumnSpacing="14">
+      <Border Classes="panel" Padding="12">
+        <Grid RowDefinitions="Auto,*" RowSpacing="12">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <StackPanel>
+              <TextBlock Text="Loaded files" FontSize="18" FontWeight="SemiBold"/>
+              <TextBlock Text="{Binding SelectionText}" Classes="secondary"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Width="120">
+              <TextBlock Text="Thumbnail" Classes="muted"/>
+              <Slider Minimum="128" Maximum="256" Value="{Binding ThumbnailSize}" TickFrequency="16"/>
+            </StackPanel>
+          </Grid>
+
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding DirectoryGroups}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DirectoryGroupViewModel">
+                  <StackPanel Margin="0,0,0,14">
+                    <TextBlock Text="{Binding Directory}" Classes="muted" Margin="2,0,0,6"/>
+                    <ItemsControl ItemsSource="{Binding Clips}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:VideoClipViewModel">
+                          <Border Classes="clip" Classes.open="{Binding IsOpen}" Margin="0,0,0,8">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                              <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                        Command="{Binding #Root.DataContext.RefreshSelectionCommand}"
+                                        VerticalAlignment="Top"/>
+                              <Button Grid.Column="1"
+                                      Classes="flat"
+                                      Command="{Binding #Root.DataContext.OpenClipCommand}"
+                                      CommandParameter="{Binding}">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                  <Border Width="{Binding #Root.DataContext.ThumbnailSize}"
+                                          Height="{Binding #Root.DataContext.ThumbnailSize}"
+                                          Background="#0C0E12"
+                                          ClipToBounds="True">
+                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                  </Border>
+                                  <StackPanel Grid.Column="1" Spacing="3">
+                                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Resolution}" Classes="secondary"/>
+                                    <TextBlock Classes="muted">
+                                      <Run Text="{Binding FrameRate}"/><Run Text=" fps  |  "/><Run Text="{Binding Duration}"/>
+                                    </TextBlock>
+                                    <TextBlock Classes="muted">
+                                      <Run Text="V: "/><Run Text="{Binding VideoCodec}"/><Run Text="  A: "/><Run Text="{Binding AudioCodec}"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding TimecodeDisplay}" Classes="muted"/>
+                                    <TextBlock Text="{Binding Status}" Classes="muted"/>
+                                  </StackPanel>
+                                </Grid>
+                              </Button>
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="1" Classes="panel" Padding="14">
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+          <StackPanel IsVisible="{Binding HasSelectedClip}">
+            <TextBlock Text="{Binding SelectedClip.FileName}" FontSize="21" FontWeight="SemiBold"/>
+            <WrapPanel Margin="0,6,0,0">
+              <TextBlock Text="{Binding SelectedClip.Resolution}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Classes="secondary" Margin="0,0,14,0">
+                <Run Text="{Binding SelectedClip.FrameRate}"/><Run Text=" fps"/>
+              </TextBlock>
+              <TextBlock Text="{Binding SelectedClip.Duration}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.VideoCodec}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.ColorSpace}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.PixelFormat}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.BitDepth}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.AudioCodec}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.TimecodeDisplay}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.CameraDisplay}" Classes="secondary" Margin="0,0,14,0"/>
+              <TextBlock Text="{Binding SelectedClip.LensDisplay}" Classes="secondary" Margin="0,0,14,0"/>
+            </WrapPanel>
+          </StackPanel>
+
+          <Border Grid.Row="1" Background="#07080A" CornerRadius="6" ClipToBounds="True">
+            <Image Source="{Binding SelectedClip.PreviewFrame}" Stretch="Uniform"/>
+          </Border>
+
+          <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+            <Button Content="Prev frame" IsEnabled="False"/>
+            <Button Content="Play" IsEnabled="False"/>
+            <Button Content="Next frame" IsEnabled="False"/>
+            <ComboBox SelectedIndex="0" MinWidth="110" IsEnabled="False">
+              <ComboBoxItem Content="2x"/>
+              <ComboBoxItem Content="4x"/>
+              <ComboBoxItem Content="6x"/>
+              <ComboBoxItem Content="8x"/>
+              <ComboBoxItem Content="10x"/>
+            </ComboBox>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="2" Classes="panel" Padding="14">
+        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+          <TextBlock Text="Actions" FontSize="18" FontWeight="SemiBold"/>
+          <Button Grid.Row="1" Classes="primary" Content="{Binding ProxyButtonText}" Command="{Binding CreateProxyCommand}"/>
+          <Button Grid.Row="2" Classes="primary" Content="{Binding MezzanineButtonText}" Command="{Binding CreateMezzanineCommand}"/>
+          <TextBlock Grid.Row="3" Text="{Binding StatusText}" Classes="secondary" TextWrapping="Wrap"/>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2" Margin="14,0,14,14" Classes="panel" Padding="14">
+      <Grid ColumnDefinitions="*,*,1.2*" ColumnSpacing="18">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Proxy settings" FontSize="17" FontWeight="SemiBold"/>
+          <TextBlock Text="Encoder: DNxHR SQ" Classes="secondary"/>
+          <TextBlock Text="Resolution: 1080 px" Classes="secondary"/>
+          <TextBlock Text="Bit depth: 8 bit" Classes="secondary"/>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Spacing="8">
+          <TextBlock Text="Mezzanine settings" FontSize="17" FontWeight="SemiBold"/>
+          <TextBlock Text="Encoder: DNxHR HQX" Classes="secondary"/>
+          <TextBlock Classes="secondary">
+            <Run Text="Resolution: Same as original"/>
+            <Run Text=" ("/><Run Text="{Binding SelectedClip.Resolution}"/><Run Text=")"/>
+          </TextBlock>
+          <TextBlock Classes="secondary">
+            <Run Text="Bit depth: Same as original"/>
+            <Run Text=" ("/><Run Text="{Binding SelectedClip.BitDepth}"/><Run Text=")"/>
+          </TextBlock>
+        </StackPanel>
+        <Grid Grid.Column="2" RowDefinitions="Auto,*" RowSpacing="8">
+          <TextBlock Text="Processing log" FontSize="17" FontWeight="SemiBold"/>
+          <TextBox Grid.Row="1"
+                   Text="{Binding LogText}"
+                   AcceptsReturn="True"
+                   IsReadOnly="True"
+                   TextWrapping="NoWrap"
+                   FontFamily="Consolas, monospace"/>
+        </Grid>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
