@@ -1,0 +1,20 @@
+# One file, HQX
+./filmrefit.py C2787.MP4
+
+# One file, proxy
+./filmrefit.py --mode proxy C2787.MP4
+
+# Whole Sony directory
+./filmrefit.py --mode proxy "/path/to/footage"
+
+# Different camera naming scheme
+./filmrefit.py \
+  --mode proxy \
+  --pattern 'GX\d+\.MP4' \
+  "/path/to/footage"
+
+# Broad MP4/MOV match
+./filmrefit.py \
+  --mode proxy \
+  --pattern '.*\.(MP4|MOV)' \
+  "/path/to/footage"
