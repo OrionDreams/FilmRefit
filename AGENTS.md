@@ -8,6 +8,7 @@ Before changing code, read:
 
 1. `docs/CSHARP-DOTNET-AVALONIA-MVVM.md` for C#, .NET and Avalonia guidance
 2. `docs/SCRIPTING.md` for the python transcoding engine
+3. `docs/PLAYBACK.md` for playback related implementation
 
 ## Project goal
 
