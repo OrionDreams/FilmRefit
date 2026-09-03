@@ -17,6 +17,8 @@ namespace FilmRefit.App.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
+    private static readonly TimeSpan MinimumPreviewRenderInterval = TimeSpan.FromSeconds(1.0 / 30);
+
     private static readonly HashSet<string> SupportedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".mp4",
@@ -38,6 +40,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private WriteableBitmap? _frontBuffer;
     private WriteableBitmap? _backBuffer;
     private TimeSpan _playbackBasePosition = TimeSpan.Zero;
+    private TimeSpan _lastPreviewRenderElapsed = TimeSpan.MinValue;
     private bool _suppressSeekRequest;
     private bool _disposed;
 
@@ -468,7 +471,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         if (!string.Equals(_playbackService.State.Path, clip.Path, StringComparison.Ordinal)
             || Math.Abs((_playbackService.State.StartPosition - position).TotalSeconds) > 0.05)
         {
-            await _playbackService.StartAsync(clip.Path, CreatePlaybackMetadata(clip), ClampPlaybackPosition(position));
+            await _playbackService.StartAsync(
+                clip.Path,
+                CreatePlaybackMetadata(clip),
+                ClampPlaybackPosition(position),
+                cancellationToken: _shutdownCancellation.Token);
         }
     }
 
@@ -478,6 +485,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _renderCancellation?.Dispose();
         _renderCancellation = new CancellationTokenSource();
         _playbackBasePosition = TimeSpan.FromSeconds(PlaybackPositionSeconds);
+        _lastPreviewRenderElapsed = TimeSpan.MinValue;
         _playbackClock.Restart();
         IsPlaybackRunning = true;
         PlaybackStatusText = $"Playing at {PlaybackRate.ToString("0.##", CultureInfo.InvariantCulture)}x";
@@ -533,8 +541,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                         await Task.Delay(delay, cancellationToken);
                     }
 
-                    await DisplayFrameAsync(frame);
-                    UpdatePlaybackPosition(frame.Position);
+                    if (ShouldRenderPreviewFrame())
+                    {
+                        await DisplayFrameAsync(frame, cancellationToken);
+                        _lastPreviewRenderElapsed = _playbackClock.Elapsed;
+                        UpdatePlaybackPosition(frame.Position);
+                    }
                 }
                 finally
                 {
@@ -574,6 +586,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         var playbackPosition = _playbackBasePosition + TimeSpan.FromTicks((long)(_playbackClock.Elapsed.Ticks * Math.Max(PlaybackRate, 0.01)));
         return framePosition < playbackPosition - frameDuration;
+    }
+
+    private bool ShouldRenderPreviewFrame()
+    {
+        return _lastPreviewRenderElapsed == TimeSpan.MinValue
+            || _playbackClock.Elapsed - _lastPreviewRenderElapsed >= MinimumPreviewRenderInterval;
     }
 
     private async Task StepFramesAsync(int frameCount)
@@ -618,7 +636,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         position = ClampPlaybackPosition(position);
         UpdatePlaybackPosition(position);
         PlaybackStatusText = "Seeking";
-        await _playbackService.StartAsync(SelectedClip.Path, CreatePlaybackMetadata(SelectedClip), position);
+        await _playbackService.StartAsync(
+            SelectedClip.Path,
+            CreatePlaybackMetadata(SelectedClip),
+            position,
+            cancellationToken: _shutdownCancellation.Token);
 
         if (wasRunning)
         {
@@ -638,7 +660,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             var frame = await _playbackService.Frames.ReadAsync(timeout.Token);
             using (frame)
             {
-                await DisplayFrameAsync(frame);
+                await DisplayFrameAsync(frame, timeout.Token);
                 UpdatePlaybackPosition(frame.Position);
             }
         }
@@ -652,10 +674,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private Task DisplayFrameAsync(PreviewFrame frame)
+    private Task DisplayFrameAsync(PreviewFrame frame, CancellationToken cancellationToken)
     {
+        if (_disposed || cancellationToken.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         return Dispatcher.UIThread.InvokeAsync(() =>
         {
+            if (_disposed || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             var bitmap = GetNextBitmap(frame.Width, frame.Height);
             using (var locked = bitmap.Lock())
             {
@@ -666,7 +698,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 SelectedClip.PreviewFrame = bitmap;
             }
-        }).GetTask();
+        }, DispatcherPriority.Background, cancellationToken).GetTask();
     }
 
     private WriteableBitmap GetNextBitmap(int width, int height)
@@ -716,12 +748,22 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void UpdatePlaybackPosition(TimeSpan position)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         Dispatcher.UIThread.Post(() =>
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _suppressSeekRequest = true;
             PlaybackPositionSeconds = Math.Clamp(position.TotalSeconds, 0, PlaybackDurationSeconds);
             _suppressSeekRequest = false;
-        });
+        }, DispatcherPriority.Background);
     }
 
     private TimeSpan ClampPlaybackPosition(TimeSpan position)

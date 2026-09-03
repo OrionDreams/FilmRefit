@@ -69,15 +69,31 @@ public sealed class PreviewPlaybackService : IDisposable
         return StopAsync(timeout: null);
     }
 
+    public void RequestStop()
+    {
+        _processCancellation?.Cancel();
+        var process = _process;
+        if (process is not null)
+        {
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        _frames.Writer.TryComplete();
+    }
+
     private async Task StopAsync(TimeSpan? timeout)
     {
         var cancellation = _processCancellation;
         _processCancellation = null;
-        if (cancellation is not null)
-        {
-            await cancellation.CancelAsync();
-            cancellation.Dispose();
-        }
 
         var process = _process;
         _process = null;
@@ -89,6 +105,7 @@ public sealed class PreviewPlaybackService : IDisposable
         {
             try
             {
+                cancellation?.Cancel();
                 if (!process.HasExited)
                 {
                     process.Kill(entireProcessTree: true);
@@ -115,8 +132,13 @@ public sealed class PreviewPlaybackService : IDisposable
                 process.Dispose();
             }
         }
+        else
+        {
+            cancellation?.Cancel();
+        }
 
         await WaitForReadersAsync(frameReaderTask, errorReaderTask, timeout);
+        cancellation?.Dispose();
 
         while (_frames.Reader.TryRead(out var frame))
         {

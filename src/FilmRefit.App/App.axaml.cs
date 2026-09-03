@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using FilmRefit.App.Services;
@@ -26,15 +27,38 @@ public partial class App : Application
                 new TranscodeService(runtime),
                 playbackService,
                 new AvaloniaUserInteractionService());
-            desktop.ShutdownRequested += (_, _) =>
+            var cleanupStarted = 0;
+            void Cleanup()
             {
-                viewModel.Dispose();
-                playbackService.Dispose();
-            };
-            desktop.MainWindow = new MainWindow
+                if (Interlocked.Exchange(ref cleanupStarted, 1) != 0)
+                {
+                    return;
+                }
+
+                _ = Task.Run(() =>
+                {
+                    viewModel.Dispose();
+                    playbackService.Dispose();
+                });
+            }
+
+            desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
+            desktop.ShutdownRequested += (_, _) => Cleanup();
+
+            var mainWindow = new MainWindow
             {
                 DataContext = viewModel
             };
+            mainWindow.Closing += (_, _) =>
+            {
+                Cleanup();
+            };
+            mainWindow.Closed += (_, _) =>
+            {
+                Cleanup();
+                desktop.Shutdown();
+            };
+            desktop.MainWindow = mainWindow;
         }
 
         base.OnFrameworkInitializationCompleted();
