@@ -12,6 +12,8 @@ public sealed class PreviewPlaybackService : IDisposable
 
     private CancellationTokenSource? _processCancellation;
     private Process? _process;
+    private Task? _frameReaderTask;
+    private Task? _errorReaderTask;
     private Channel<PreviewFrame> _frames = CreateFrameChannel();
 
     public ChannelReader<PreviewFrame> Frames => _frames.Reader;
@@ -58,11 +60,16 @@ public sealed class PreviewPlaybackService : IDisposable
             throw new InvalidOperationException("Could not start ffmpeg for preview playback.");
         }
 
-        _ = Task.Run(() => ReadFramesAsync(_process, State, frameChannel, _processCancellation.Token), CancellationToken.None);
-        _ = Task.Run(() => DrainErrorsAsync(_process, _processCancellation.Token), CancellationToken.None);
+        _frameReaderTask = Task.Run(() => ReadFramesAsync(_process, State, frameChannel, _processCancellation.Token), CancellationToken.None);
+        _errorReaderTask = Task.Run(() => DrainErrorsAsync(_process, _processCancellation.Token), CancellationToken.None);
     }
 
-    public async Task StopAsync()
+    public Task StopAsync()
+    {
+        return StopAsync(timeout: null);
+    }
+
+    private async Task StopAsync(TimeSpan? timeout)
     {
         var cancellation = _processCancellation;
         _processCancellation = null;
@@ -74,6 +81,10 @@ public sealed class PreviewPlaybackService : IDisposable
 
         var process = _process;
         _process = null;
+        var frameReaderTask = _frameReaderTask;
+        var errorReaderTask = _errorReaderTask;
+        _frameReaderTask = null;
+        _errorReaderTask = null;
         if (process is not null)
         {
             try
@@ -83,7 +94,18 @@ public sealed class PreviewPlaybackService : IDisposable
                     process.Kill(entireProcessTree: true);
                 }
 
-                await process.WaitForExitAsync();
+                if (timeout is null)
+                {
+                    await process.WaitForExitAsync();
+                }
+                else
+                {
+                    using var waitCancellation = new CancellationTokenSource(timeout.Value);
+                    await process.WaitForExitAsync(waitCancellation.Token);
+                }
+            }
+            catch (OperationCanceledException) when (timeout is not null)
+            {
             }
             catch (InvalidOperationException)
             {
@@ -93,6 +115,8 @@ public sealed class PreviewPlaybackService : IDisposable
                 process.Dispose();
             }
         }
+
+        await WaitForReadersAsync(frameReaderTask, errorReaderTask, timeout);
 
         while (_frames.Reader.TryRead(out var frame))
         {
@@ -105,7 +129,28 @@ public sealed class PreviewPlaybackService : IDisposable
 
     public void Dispose()
     {
-        StopAsync().GetAwaiter().GetResult();
+        StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+    }
+
+    private static async Task WaitForReadersAsync(Task? frameReaderTask, Task? errorReaderTask, TimeSpan? timeout)
+    {
+        var tasks = new[] { frameReaderTask, errorReaderTask }
+            .Where(task => task is not null)
+            .Cast<Task>()
+            .ToArray();
+        if (tasks.Length == 0)
+        {
+            return;
+        }
+
+        var readers = Task.WhenAll(tasks);
+        if (timeout is null)
+        {
+            await readers.ConfigureAwait(false);
+            return;
+        }
+
+        await Task.WhenAny(readers, Task.Delay(timeout.Value)).ConfigureAwait(false);
     }
 
     private static Channel<PreviewFrame> CreateFrameChannel()

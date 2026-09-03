@@ -15,7 +15,7 @@ using FilmRefit.App.Services;
 
 namespace FilmRefit.App.ViewModels;
 
-public partial class MainWindowViewModel : ObservableObject
+public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private static readonly HashSet<string> SupportedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,12 +32,14 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IUserInteractionService _userInteraction;
     private readonly ObservableCollection<VideoClipViewModel> _clips = [];
     private readonly Stopwatch _playbackClock = new();
+    private readonly CancellationTokenSource _shutdownCancellation = new();
     private CancellationTokenSource? _renderCancellation;
     private CancellationTokenSource? _seekDebounceCancellation;
     private WriteableBitmap? _frontBuffer;
     private WriteableBitmap? _backBuffer;
     private TimeSpan _playbackBasePosition = TimeSpan.Zero;
     private bool _suppressSeekRequest;
+    private bool _disposed;
 
     [ObservableProperty]
     private VideoClipViewModel? _selectedClip;
@@ -161,17 +163,23 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private async Task OpenClipAsync(VideoClipViewModel clip)
     {
-        foreach (var item in _clips)
+        try
         {
-            item.IsOpen = ReferenceEquals(item, clip);
-        }
+            foreach (var item in _clips)
+            {
+                item.IsOpen = ReferenceEquals(item, clip);
+            }
 
-        SelectedClip = clip;
-        await StopPlaybackAsync();
-        ResetPlaybackState(clip);
-        if (clip.PreviewFrame is null)
+            SelectedClip = clip;
+            await StopPlaybackAsync();
+            ResetPlaybackState(clip);
+            if (clip.PreviewFrame is null)
+            {
+                clip.PreviewFrame = await _mediaProbe.GenerateFrameAsync(clip.Path, 1280, _shutdownCancellation.Token);
+            }
+        }
+        catch (OperationCanceledException) when (_shutdownCancellation.IsCancellationRequested)
         {
-            clip.PreviewFrame = await _mediaProbe.GenerateFrameAsync(clip.Path, 1280);
         }
     }
 
@@ -269,8 +277,8 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             clip.Status = "Reading metadata";
-            var metadata = await _mediaProbe.ProbeAsync(clip.Path);
-            var thumbnail = await _mediaProbe.GenerateFrameAsync(clip.Path, 256);
+            var metadata = await _mediaProbe.ProbeAsync(clip.Path, _shutdownCancellation.Token);
+            var thumbnail = await _mediaProbe.GenerateFrameAsync(clip.Path, 256, _shutdownCancellation.Token);
             Dispatcher.UIThread.Post(() =>
             {
                 clip.ApplyMetadata(metadata);
@@ -281,6 +289,9 @@ public partial class MainWindowViewModel : ObservableObject
                     ResetPlaybackState(clip);
                 }
             });
+        }
+        catch (OperationCanceledException) when (_shutdownCancellation.IsCancellationRequested)
+        {
         }
         catch (Exception exc)
         {
@@ -313,7 +324,7 @@ public partial class MainWindowViewModel : ObservableObject
                 clip.Status = mode == TranscodeMode.Proxy ? "Creating proxy" : "Creating mezzanine";
                 AppendLog("");
                 AppendLog($"{clip.FileName}: starting {mode.ToString().ToLowerInvariant()}");
-                var result = await _transcodeService.TranscodeAsync(clip.Path, mode, AppendLog);
+                var result = await _transcodeService.TranscodeAsync(clip.Path, mode, AppendLog, _shutdownCancellation.Token);
                 clip.Status = result.ExitCode == 0 ? "Done" : "Failed";
                 if (result.ExitCode != 0)
                 {
@@ -321,11 +332,30 @@ public partial class MainWindowViewModel : ObservableObject
                 }
             }
         }
+        catch (OperationCanceledException) when (_shutdownCancellation.IsCancellationRequested)
+        {
+        }
         finally
         {
             IsProcessing = false;
             RefreshActionState();
         }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _shutdownCancellation.Cancel();
+        _renderCancellation?.Cancel();
+        _seekDebounceCancellation?.Cancel();
+        _renderCancellation?.Dispose();
+        _seekDebounceCancellation?.Dispose();
+        _shutdownCancellation.Dispose();
     }
 
     private IReadOnlyList<VideoClipViewModel> GetActionClips()
