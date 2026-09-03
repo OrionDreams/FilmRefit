@@ -69,27 +69,6 @@ public sealed class PreviewPlaybackService : IDisposable
         return StopAsync(timeout: null);
     }
 
-    public void RequestStop()
-    {
-        _processCancellation?.Cancel();
-        var process = _process;
-        if (process is not null)
-        {
-            try
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                }
-            }
-            catch (InvalidOperationException)
-            {
-            }
-        }
-
-        _frames.Writer.TryComplete();
-    }
-
     private async Task StopAsync(TimeSpan? timeout)
     {
         var cancellation = _processCancellation;

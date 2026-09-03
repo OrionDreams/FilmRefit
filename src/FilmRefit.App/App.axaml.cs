@@ -53,11 +53,6 @@ public partial class App : Application
             {
                 Cleanup();
             };
-            mainWindow.Closed += (_, _) =>
-            {
-                Cleanup();
-                desktop.Shutdown();
-            };
             desktop.MainWindow = mainWindow;
         }
 
