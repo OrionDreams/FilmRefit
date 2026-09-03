@@ -9,6 +9,8 @@ namespace FilmRefit.App.Services;
 public sealed record VideoMetadata(
     int? Width,
     int? Height,
+    double? FrameRateValue,
+    double? DurationSeconds,
     string Resolution,
     string FrameRate,
     string Duration,
@@ -62,11 +64,16 @@ public sealed class MediaProbeService
         var videoTags = ReadObject(video, "tags");
         var formatTags = ReadObject(format, "tags");
 
+        var frameRateValue = ParseFrameRate(ReadString(video, "avg_frame_rate"), ReadString(video, "r_frame_rate"));
+        var durationSeconds = ParseDurationSeconds(duration);
+
         return new VideoMetadata(
             width,
             height,
+            frameRateValue,
+            durationSeconds,
             width is not null && height is not null ? $"{width} x {height}" : "Unknown",
-            FormatFrameRate(ReadString(video, "avg_frame_rate"), ReadString(video, "r_frame_rate")),
+            FormatFrameRate(frameRateValue, ReadString(video, "avg_frame_rate"), ReadString(video, "r_frame_rate")),
             FormatDuration(duration),
             ReadString(video, "codec_name") ?? "Unknown",
             ReadString(audio, "codec_name") ?? "None",
@@ -159,12 +166,12 @@ public sealed class MediaProbeService
         };
     }
 
-    private static string FormatFrameRate(string? averageFrameRate, string? realFrameRate)
+    private static double? ParseFrameRate(string? averageFrameRate, string? realFrameRate)
     {
         var raw = averageFrameRate is not "0/0" and not null ? averageFrameRate : realFrameRate;
         if (string.IsNullOrWhiteSpace(raw))
         {
-            return "Unknown";
+            return null;
         }
 
         var parts = raw.Split('/');
@@ -173,20 +180,39 @@ public sealed class MediaProbeService
             && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var denominator)
             && denominator != 0)
         {
-            return (numerator / denominator).ToString("0.###", CultureInfo.InvariantCulture);
+            return numerator / denominator;
         }
 
-        return raw;
+        return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : null;
+    }
+
+    private static string FormatFrameRate(double? frameRate, string? averageFrameRate, string? realFrameRate)
+    {
+        if (frameRate is not null)
+        {
+            return frameRate.Value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        var raw = averageFrameRate is not "0/0" and not null ? averageFrameRate : realFrameRate;
+        return string.IsNullOrWhiteSpace(raw) ? "Unknown" : raw;
+    }
+
+    private static double? ParseDurationSeconds(string? duration)
+    {
+        return double.TryParse(duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+            ? seconds
+            : null;
     }
 
     private static string FormatDuration(string? duration)
     {
-        if (!double.TryParse(duration, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds))
+        var seconds = ParseDurationSeconds(duration);
+        if (seconds is null)
         {
             return "Unknown";
         }
 
-        var value = TimeSpan.FromSeconds(seconds);
+        var value = TimeSpan.FromSeconds(seconds.Value);
         return value.TotalHours >= 1
             ? value.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
             : value.ToString(@"m\:ss", CultureInfo.InvariantCulture);

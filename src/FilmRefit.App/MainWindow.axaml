@@ -188,21 +188,53 @@
           </StackPanel>
 
           <Border Grid.Row="1" Background="#07080A" CornerRadius="6" ClipToBounds="True">
-            <Image Source="{Binding SelectedClip.PreviewFrame}" Stretch="Uniform"/>
+            <Grid>
+              <Image Source="{Binding SelectedClip.PreviewFrame}" Stretch="Uniform"/>
+              <TextBlock Text="{Binding PlaybackStatusText}"
+                         Classes="muted"
+                         HorizontalAlignment="Left"
+                         VerticalAlignment="Bottom"
+                         Margin="12"
+                         Background="#9907080A"
+                         Padding="8,4"/>
+            </Grid>
           </Border>
 
-          <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-            <Button Content="Prev frame" IsEnabled="False"/>
-            <Button Content="Play" IsEnabled="False"/>
-            <Button Content="Next frame" IsEnabled="False"/>
-            <ComboBox SelectedIndex="0" MinWidth="110" IsEnabled="False">
-              <ComboBoxItem Content="2x"/>
-              <ComboBoxItem Content="4x"/>
-              <ComboBoxItem Content="6x"/>
-              <ComboBoxItem Content="8x"/>
-              <ComboBoxItem Content="10x"/>
-            </ComboBox>
-          </StackPanel>
+          <Grid Grid.Row="2" RowDefinitions="Auto,Auto" RowSpacing="8">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+              <TextBlock Text="{Binding PlaybackPositionText}" Classes="muted" VerticalAlignment="Center" MinWidth="48"/>
+              <Slider Grid.Column="1"
+                      Minimum="0"
+                      Maximum="{Binding PlaybackDurationSeconds}"
+                      Value="{Binding PlaybackPositionSeconds, Mode=TwoWay}"
+                      IsEnabled="{Binding CanUsePlayback}"/>
+              <TextBlock Grid.Column="2"
+                         Text="{Binding PlaybackDurationText}"
+                         Classes="muted"
+                         VerticalAlignment="Center"
+                         MinWidth="48"
+                         TextAlignment="Right"/>
+            </Grid>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+              <Button Content="Prev frame"
+                      Command="{Binding StepPreviousFrameCommand}"/>
+              <Button Content="{Binding PlayPauseText}"
+                      Command="{Binding TogglePlaybackCommand}"
+                      MinWidth="82"/>
+              <Button Content="Next frame"
+                      Command="{Binding StepNextFrameCommand}"/>
+              <ComboBox ItemsSource="{Binding PlaybackRates}"
+                        SelectedItem="{Binding PlaybackRate}"
+                        MinWidth="94"
+                        IsEnabled="{Binding CanUsePlayback}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding StringFormat='{}{0:0.##}x'}"/>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+          </Grid>
         </Grid>
       </Border>
 

@@ -54,6 +54,10 @@ public partial class VideoClipViewModel : ObservableObject
     [ObservableProperty]
     private Bitmap? _previewFrame;
 
+    public double? FrameRateValue { get; private set; }
+
+    public double? DurationSeconds { get; private set; }
+
     public VideoClipViewModel(string path)
     {
         Path = path;
@@ -75,6 +79,8 @@ public partial class VideoClipViewModel : ObservableObject
 
     public void ApplyMetadata(VideoMetadata metadata)
     {
+        FrameRateValue = metadata.FrameRateValue;
+        DurationSeconds = metadata.DurationSeconds;
         Resolution = metadata.Resolution;
         FrameRate = metadata.FrameRate;
         Duration = metadata.Duration;

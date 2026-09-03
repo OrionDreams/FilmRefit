@@ -19,12 +19,15 @@ public partial class App : Application
         {
             var runtime = RuntimePaths.Discover();
             var mediaProbe = new MediaProbeService();
+            var playbackService = new PreviewPlaybackService();
+            desktop.ShutdownRequested += (_, _) => playbackService.Dispose();
             desktop.MainWindow = new MainWindow
             {
                 DataContext = new MainWindowViewModel(
                     runtime,
                     mediaProbe,
                     new TranscodeService(runtime),
+                    playbackService,
                     new AvaloniaUserInteractionService())
             };
         }
