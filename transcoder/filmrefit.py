@@ -12,6 +12,7 @@ from typing import Optional
 
 VAAPI_DEVICE = "/dev/dri/renderD129"
 EXTRA_HW_FRAMES = "128"
+FFMPEG_STATS_PERIOD_SECONDS = "5"
 
 
 # ---------------------------------------------------------------------
@@ -383,6 +384,7 @@ def build_ffmpeg_command(
     cmd = [
         "ffmpeg",
         "-nostdin",
+        "-stats_period", FFMPEG_STATS_PERIOD_SECONDS,
     ]
 
     # -------------------------------------------------------------

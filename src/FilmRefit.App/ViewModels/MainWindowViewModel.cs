@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -18,6 +19,12 @@ namespace FilmRefit.App.ViewModels;
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private static readonly TimeSpan MinimumPreviewRenderInterval = TimeSpan.FromSeconds(1.0 / 30);
+    private static readonly Regex FfmpegProgressRegex = new(
+        @"(?:^|\s)frame=\s*(?<frame>\d+).*?\btime=(?<time>\d+:\d{2}:\d{2}(?:\.\d+)?).*?\bspeed=\s*(?<speed>\d+(?:\.\d+)?)x",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex FfmpegDurationRegex = new(
+        @"Duration:\s*(?<duration>\d+:\d{2}:\d{2}(?:\.\d+)?)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly HashSet<string> SupportedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -34,6 +41,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly IUserInteractionService _userInteraction;
     private readonly ObservableCollection<VideoClipViewModel> _clips = [];
     private readonly Stopwatch _playbackClock = new();
+    private readonly Stopwatch _batchClock = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
     private CancellationTokenSource? _renderCancellation;
     private CancellationTokenSource? _seekDebounceCancellation;
@@ -41,6 +49,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private WriteableBitmap? _backBuffer;
     private TimeSpan _playbackBasePosition = TimeSpan.Zero;
     private TimeSpan _lastPreviewRenderElapsed = TimeSpan.MinValue;
+    private VideoClipViewModel? _processingClip;
+    private double? _processingDurationSeconds;
+    private int _processingClipIndex;
+    private int _processingClipCount;
     private bool _suppressSeekRequest;
     private bool _disposed;
 
@@ -106,6 +118,27 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _selectionText = "No files selected";
+
+    [ObservableProperty]
+    private string _progressCurrentFileText = "No active transcode";
+
+    [ObservableProperty]
+    private string _currentFileProgressText = "Current file: 0%";
+
+    [ObservableProperty]
+    private string _currentFileEtaText = "ETA --";
+
+    [ObservableProperty]
+    private double _currentFileProgressValue;
+
+    [ObservableProperty]
+    private string _overallProgressText = "Batch: 0 of 0";
+
+    [ObservableProperty]
+    private string _overallEtaText = "ETA --";
+
+    [ObservableProperty]
+    private double _overallProgressValue;
 
     public MainWindowViewModel(
         FilmRefitRuntime runtime,
@@ -320,19 +353,24 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         IsProcessing = true;
+        StartProgressBatch(clips.Count);
         try
         {
-            foreach (var clip in clips)
+            for (var index = 0; index < clips.Count; index++)
             {
+                var clip = clips[index];
+                StartProgressFile(clip, index + 1, clips.Count);
                 clip.Status = mode == TranscodeMode.Proxy ? "Creating proxy" : "Creating mezzanine";
                 AppendLog("");
                 AppendLog($"{clip.FileName}: starting {mode.ToString().ToLowerInvariant()}");
-                var result = await _transcodeService.TranscodeAsync(clip.Path, mode, AppendLog, _shutdownCancellation.Token);
+                var result = await _transcodeService.TranscodeAsync(clip.Path, mode, OnTranscodeLogLine, _shutdownCancellation.Token);
                 clip.Status = result.ExitCode == 0 ? "Done" : "Failed";
                 if (result.ExitCode != 0)
                 {
                     AppendLog($"{clip.FileName}: failed with exit code {result.ExitCode}");
                 }
+
+                FinishProgressFile(result.ExitCode == 0);
             }
         }
         catch (OperationCanceledException) when (_shutdownCancellation.IsCancellationRequested)
@@ -341,6 +379,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         finally
         {
             IsProcessing = false;
+            FinishProgressBatch();
             RefreshActionState();
         }
     }
@@ -464,6 +503,143 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void AppendLog(string line)
     {
         LogText = string.IsNullOrEmpty(LogText) ? line : $"{LogText}{Environment.NewLine}{line}";
+    }
+
+    private void OnTranscodeLogLine(string line)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AppendLog(line);
+            UpdateTranscodeProgress(line);
+        });
+    }
+
+    private void StartProgressBatch(int clipCount)
+    {
+        _batchClock.Restart();
+        _processingClip = null;
+        _processingClipIndex = 0;
+        _processingClipCount = clipCount;
+        CurrentFileProgressValue = 0;
+        OverallProgressValue = 0;
+        ProgressCurrentFileText = "Preparing transcode";
+        CurrentFileProgressText = "Current file: 0%";
+        CurrentFileEtaText = "ETA --";
+        OverallProgressText = clipCount <= 1 ? "Batch: 0%" : $"Batch: 0 of {clipCount}";
+        OverallEtaText = "ETA --";
+    }
+
+    private void StartProgressFile(VideoClipViewModel clip, int index, int count)
+    {
+        _processingClip = clip;
+        _processingDurationSeconds = clip.DurationSeconds;
+        _processingClipIndex = index;
+        _processingClipCount = count;
+        CurrentFileProgressValue = 0;
+        ProgressCurrentFileText = count <= 1
+            ? clip.FileName
+            : $"{clip.FileName} ({index} of {count})";
+        CurrentFileProgressText = "Current file: 0%";
+        CurrentFileEtaText = "ETA --";
+        UpdateOverallProgress(0);
+    }
+
+    private void FinishProgressFile(bool succeeded)
+    {
+        if (_processingClip is null)
+        {
+            return;
+        }
+
+        CurrentFileProgressValue = succeeded ? 100 : CurrentFileProgressValue;
+        CurrentFileProgressText = succeeded ? "Current file: 100%" : "Current file: failed";
+        CurrentFileEtaText = succeeded ? "ETA 0:00" : "ETA --";
+        UpdateOverallProgress(succeeded ? 1 : CurrentFileProgressValue / 100);
+    }
+
+    private void FinishProgressBatch()
+    {
+        _batchClock.Stop();
+        if (_shutdownCancellation.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (_processingClipCount > 0 && OverallProgressValue >= 100)
+        {
+            ProgressCurrentFileText = "Transcode complete";
+            OverallEtaText = "ETA 0:00";
+        }
+    }
+
+    private void UpdateTranscodeProgress(string line)
+    {
+        var durationMatch = FfmpegDurationRegex.Match(line);
+        if (durationMatch.Success && TryParseFfmpegTime(durationMatch.Groups["duration"].Value, out var duration))
+        {
+            _processingDurationSeconds = duration.TotalSeconds;
+        }
+
+        if (_processingDurationSeconds is not > 0)
+        {
+            return;
+        }
+
+        var match = FfmpegProgressRegex.Match(line);
+        if (!match.Success)
+        {
+            return;
+        }
+
+        if (!TryParseFfmpegTime(match.Groups["time"].Value, out var encodedTime))
+        {
+            return;
+        }
+
+        var durationSeconds = _processingDurationSeconds.Value;
+        var encodedSeconds = Math.Clamp(encodedTime.TotalSeconds, 0, durationSeconds);
+        var fileFraction = durationSeconds <= 0 ? 0 : encodedSeconds / durationSeconds;
+        CurrentFileProgressValue = Math.Clamp(fileFraction * 100, 0, 100);
+        CurrentFileProgressText = $"Current file: {CurrentFileProgressValue:0}%";
+
+        if (double.TryParse(match.Groups["speed"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var speed)
+            && speed > 0)
+        {
+            CurrentFileEtaText = $"ETA {FormatDuration(TimeSpan.FromSeconds((durationSeconds - encodedSeconds) / speed))}";
+        }
+        else
+        {
+            CurrentFileEtaText = "ETA --";
+        }
+
+        UpdateOverallProgress(fileFraction);
+    }
+
+    private void UpdateOverallProgress(double currentFileFraction)
+    {
+        if (_processingClipCount <= 0)
+        {
+            OverallProgressValue = 0;
+            OverallProgressText = "Batch: 0 of 0";
+            OverallEtaText = "ETA --";
+            return;
+        }
+
+        var completedFiles = Math.Max(0, _processingClipIndex - 1);
+        var batchFraction = Math.Clamp((completedFiles + Math.Clamp(currentFileFraction, 0, 1)) / _processingClipCount, 0, 1);
+        OverallProgressValue = batchFraction * 100;
+        OverallProgressText = _processingClipCount <= 1
+            ? $"Batch: {OverallProgressValue:0}%"
+            : $"Batch: {completedFiles + currentFileFraction:0.0} of {_processingClipCount}";
+
+        OverallEtaText = batchFraction > 0 && _batchClock.IsRunning
+            ? $"ETA {FormatDuration(TimeSpan.FromSeconds(_batchClock.Elapsed.TotalSeconds / batchFraction - _batchClock.Elapsed.TotalSeconds))}"
+            : "ETA --";
+    }
+
+    private static bool TryParseFfmpegTime(string value, out TimeSpan time)
+    {
+        return TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out time);
     }
 
     private async Task EnsurePlaybackStartedAsync(VideoClipViewModel clip, TimeSpan position)
