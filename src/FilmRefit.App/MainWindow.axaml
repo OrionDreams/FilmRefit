@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:behaviors="clr-namespace:FilmRefit.App.Behaviors"
         xmlns:vm="clr-namespace:FilmRefit.App.ViewModels"
         mc:Ignorable="d" d:DesignWidth="1480" d:DesignHeight="920"
         x:Class="FilmRefit.App.MainWindow"
@@ -305,7 +306,8 @@
                    AcceptsReturn="True"
                    IsReadOnly="True"
                    TextWrapping="NoWrap"
-                   FontFamily="Consolas, monospace"/>
+                   FontFamily="Consolas, monospace"
+                   behaviors:TextBoxAutoScroll.IsEnabled="True"/>
         </Grid>
       </Grid>
     </Border>
