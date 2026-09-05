@@ -28,6 +28,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private static readonly Regex FfmpegDurationRegex = new(
         @"Duration:\s*(?<duration>\d+:\d{2}:\d{2}(?:\.\d+)?)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex AbsolutePathRegex = new(
+        @"(?<path>(?:[A-Za-z]:[\\/]|/)[^\r\n'""<>]*)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly HashSet<string> SupportedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -169,6 +172,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public ObservableCollection<DirectoryGroupViewModel> DirectoryGroups { get; } = [];
 
     public ObservableCollection<VideoClipViewModel> SelectedClips { get; } = [];
+
+    public ObservableCollection<TranscodeStatusItemViewModel> TranscodeStatusItems { get; } = [];
 
     public IReadOnlyList<double> PlaybackRates { get; } = [0.5, 1, 2, 4, 8];
 
@@ -375,8 +380,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 AppendLog($"{clip.FileName}: starting {mode.ToString().ToLowerInvariant()}");
                 var result = await _transcodeService.TranscodeAsync(clip.Path, mode, OnTranscodeLogLine, _shutdownCancellation.Token);
                 await Dispatcher.UIThread.InvokeAsync(FlushPendingTranscodeLogLines);
-                clip.Status = result.ExitCode == 0 ? "Done" : "Failed";
-                if (result.ExitCode != 0)
+                var succeeded = result.ExitCode == 0;
+                clip.Status = succeeded ? "Done" : "Failed";
+                var errorText = succeeded ? "" : ExtractTranscodeFailureMessage(result, clip.Path, mode);
+                TranscodeStatusItems.Insert(0, new TranscodeStatusItemViewModel(mode, clip.FileName, succeeded, errorText));
+                if (!succeeded)
                 {
                     AppendLog($"{clip.FileName}: failed with exit code {result.ExitCode}");
                 }
@@ -784,6 +792,66 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return _processingClip is null
             ? $"Current file: {status}"
             : $"{_processingClip.FileName}: {status}";
+    }
+
+    private static string ExtractTranscodeFailureMessage(ProcessResult result, string inputPath, TranscodeMode mode)
+    {
+        var outputPath = TranscoderOutputNaming.BuildOutputPath(inputPath, mode);
+        var lines = EnumerateProcessLines(result)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+
+        var outputExistsLine = lines.LastOrDefault(line =>
+            line.Contains("output already exists", StringComparison.OrdinalIgnoreCase));
+        if (outputExistsLine is not null)
+        {
+            return "Output already exists";
+        }
+
+        var errorLine = lines.LastOrDefault(line =>
+            line.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase));
+        if (errorLine is null)
+        {
+            errorLine = result.ExitCode == 0 ? "" : $"Failed with exit code {result.ExitCode}";
+        }
+
+        return TrimErrorPrefix(ShortenPaths(errorLine, inputPath, outputPath));
+    }
+
+    private static IEnumerable<string> EnumerateProcessLines(ProcessResult result)
+    {
+        foreach (var line in result.StandardError.Split(Environment.NewLine, StringSplitOptions.None))
+        {
+            yield return line;
+        }
+
+        foreach (var line in result.StandardOutput.Split(Environment.NewLine, StringSplitOptions.None))
+        {
+            yield return line;
+        }
+    }
+
+    private static string TrimErrorPrefix(string value)
+    {
+        return Regex.Replace(value, @"^\s*error:\s*", "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
+    }
+
+    private static string ShortenPaths(string value, params string[] knownPaths)
+    {
+        foreach (var path in knownPaths.Where(path => !string.IsNullOrWhiteSpace(path)))
+        {
+            value = value.Replace(path, Path.GetFileName(path), StringComparison.Ordinal);
+        }
+
+        return AbsolutePathRegex.Replace(value, match =>
+        {
+            var path = match.Groups["path"].Value.TrimEnd('.', ',', ';', ':', ')', ']');
+            var suffix = match.Groups["path"].Value[path.Length..];
+            var fileName = Path.GetFileName(path);
+            return string.IsNullOrWhiteSpace(fileName) ? match.Value : fileName + suffix;
+        });
     }
 
     private void UpdateOverallProgress(double currentFileFraction)

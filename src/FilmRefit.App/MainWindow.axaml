@@ -79,6 +79,40 @@
       <Setter Property="VerticalAlignment" Value="Center"/>
       <Setter Property="LineHeight" Value="14"/>
     </Style>
+    <Style Selector="Border.transcodeStatusItem">
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="7"/>
+      <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+    <Style Selector="Border.transcodeStatusItem.succeeded">
+      <Setter Property="Background" Value="#173F2D"/>
+      <Setter Property="BorderBrush" Value="#2F7858"/>
+    </Style>
+    <Style Selector="Border.transcodeStatusItem.failed">
+      <Setter Property="Background" Value="#4B1B24"/>
+      <Setter Property="BorderBrush" Value="#8A3645"/>
+    </Style>
+    <Style Selector="Border.statusOperation">
+      <Setter Property="Background" Value="#B62A7E"/>
+      <Setter Property="Padding" Value="8,2"/>
+    </Style>
+    <Style Selector="TextBlock.statusOperationText">
+      <Setter Property="Foreground" Value="#FFF4FB"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="LineHeight" Value="14"/>
+    </Style>
+    <Style Selector="TextBlock.statusFileName">
+      <Setter Property="Foreground" Value="#F8FBF7"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="TextBlock.statusError">
+      <Setter Property="Foreground" Value="#FFE2E8"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
     <Style Selector="Button">
       <Setter Property="MinHeight" Value="36"/>
       <Setter Property="Padding" Value="14,7"/>
@@ -307,11 +341,42 @@
       </Border>
 
       <Border Grid.Column="2" Classes="panel" Padding="14">
-        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
-          <TextBlock Text="Actions" FontSize="18" FontWeight="SemiBold"/>
-          <Button Grid.Row="1" Classes="primary" Content="{Binding ProxyButtonText}" Command="{Binding CreateProxyCommand}"/>
-          <Button Grid.Row="2" Classes="primary" Content="{Binding MezzanineButtonText}" Command="{Binding CreateMezzanineCommand}"/>
-          <TextBlock Grid.Row="3" Text="{Binding StatusText}" Classes="secondary" TextWrapping="Wrap"/>
+        <Grid RowDefinitions="*,*" RowSpacing="14">
+          <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+            <TextBlock Text="Actions" FontSize="18" FontWeight="SemiBold"/>
+            <Button Grid.Row="1" Classes="primary" Content="{Binding ProxyButtonText}" Command="{Binding CreateProxyCommand}"/>
+            <Button Grid.Row="2" Classes="primary" Content="{Binding MezzanineButtonText}" Command="{Binding CreateMezzanineCommand}"/>
+            <TextBlock Grid.Row="3" Text="{Binding StatusText}" Classes="secondary" TextWrapping="Wrap"/>
+          </Grid>
+
+          <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="10">
+            <TextBlock Text="Status" FontSize="18" FontWeight="SemiBold"/>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding TranscodeStatusItems}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:TranscodeStatusItemViewModel">
+                    <Border Classes="transcodeStatusItem"
+                            Classes.succeeded="{Binding Succeeded}"
+                            Classes.failed="{Binding Failed}"
+                            Margin="0,0,0,8">
+                      <StackPanel>
+                        <Border Classes="statusOperation">
+                          <TextBlock Text="{Binding OperationText}" Classes="statusOperationText"/>
+                        </Border>
+                        <TextBlock Text="{Binding FileName}"
+                                   Classes="statusFileName"
+                                   Margin="8,7,8,6"/>
+                        <TextBlock Text="{Binding ErrorText}"
+                                   Classes="statusError"
+                                   IsVisible="{Binding HasError}"
+                                   Margin="8,0,8,8"/>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Grid>
         </Grid>
       </Border>
     </Grid>
