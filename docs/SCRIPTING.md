@@ -440,11 +440,15 @@ Therefore:
 - `;` means DF
 - DF/NDF must be detected correctly, not guessed purely from FPS
 
-### Strong user requirement
+### Strong user requirements
 
 Do not infer drop-frame just because the rate is 29.97 or 59.94.
 
 The script should determine the actual Sony camera timecode mode from metadata whenever possible.
+
+Do not infer or synthesize source timecode from filenames, recording dates, creation times, or other non-timecode fields. Timecode is used so NLE software such as Resolve or Premiere can validate that a proxy or mezzanine belongs to a specific source clip. If no metadata timecode is found, leave output timecode unset.
+
+Timecode detection and interpretation belongs in the Python transcoder only. The Avalonia app is a wrapper and should call the Python probe interface instead of duplicating ffprobe parsing or camera-specific timecode logic in C#.
 
 ---
 
@@ -483,7 +487,25 @@ Resolve: 59.940 DF
 desired MOV proxy TC: 05:48:34;10
 ```
 
-If Sony metadata parsing is uncertain, do not guess DF/NDF.
+If Sony metadata parsing is uncertain, do not guess DF/NDF from frame rate. For non-Sony files, a standard embedded metadata timecode such as MOV/MP4 `tmcd` may still be used directly when ffprobe exposes it.
+
+---
+
+## Source metadata probe interface
+
+The Python script exposes source metadata for the Avalonia wrapper:
+
+```bash
+python3 transcoder/filmrefit.py --probe-json INPUT
+```
+
+This JSON path uses the same source-timecode resolver as transcoding:
+
+1. Parse Sony LTC from sidecar XML or embedded `NonRealTimeMeta` when available.
+2. Otherwise use embedded timecode tags reported by ffprobe, including standard `tmcd` timecode tracks.
+3. Otherwise return no timecode.
+
+The C# app should treat this JSON as display data only. It must not independently infer timecode or add fallbacks from filenames or recording timestamps.
 
 ---
 
@@ -640,7 +662,7 @@ ffmpeg \
   "$OUTPUT"
 ```
 
-Timecode argument should only be added if timecode mode is known reliably.
+Add `-timecode "$OUTPUT_TIMECODE"` when the Python source-timecode resolver returns a value. That includes Sony LTC parsed from XML/`NonRealTimeMeta` and embedded metadata timecode such as MOV/MP4 `tmcd`.
 
 ### H.264 HQX
 
@@ -701,7 +723,7 @@ ffmpeg \
   "$OUTPUT"
 ```
 
-Again, only include `-timecode` if DF/NDF is known correctly.
+Again, include `-timecode` only when the Python source-timecode resolver returns a value. Do not synthesize a value when no metadata timecode exists.
 
 ---
 

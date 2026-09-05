@@ -48,7 +48,15 @@ small bounded frame queue
 Avalonia rendering surface / WriteableBitmap
 ```
 
-Use `ffprobe` separately to obtain metadata such as:
+Use the Python transcoder probe interface to obtain source metadata. The
+Avalonia wrapper should call:
+
+```bash
+python3 transcoder/filmrefit.py --probe-json INPUT
+```
+
+Do not duplicate media detection or timecode parsing in C#. The Python layer is
+the source of truth for fields such as:
 
 - Duration.
 - Width / height.
@@ -574,13 +582,14 @@ Playback/
 
 ### `VideoProbeService`
 
-Responsible for running `ffprobe` and returning:
+Responsible for running the Python transcoder probe interface and returning:
 
 - Duration.
 - Source width / height.
 - Display aspect ratio / rotation.
 - Nominal frame rate.
 - Codec / pixel format.
+- Timecode as resolved by the Python transcoder.
 
 ### `FfmpegPreviewProcess`
 
@@ -671,7 +680,7 @@ Use buffer pooling where practical.
 
 The recommended first version should implement:
 
-1. Probe video metadata using `ffprobe`.
+1. Probe video metadata using `transcoder/filmrefit.py --probe-json`.
 2. Start bundled FFmpeg and emit scaled BGRA rawvideo.
 3. Read complete frames asynchronously.
 4. Render through a reusable Avalonia bitmap.

@@ -14,6 +14,8 @@ Before changing code, read:
 
 Offer features for Video transcoding, proxies, and media preparation for post-production. One key quality of this software is that it preserves the original timecode across all the transcoding and transformation options that it offers.
 
+Timecode detection and interpretation belongs in the Python transcoder, not in the C# Avalonia wrapper. Do not infer timecode from filenames, recording timestamps, or other non-timecode fields. The wrapper should use the Python probe interface for display metadata.
+
 The baseline must remain CPU-only and GPU-vendor-independent. Optional CPU and GPU acceleration may be explored, but for the initial implementation, the only required acceleration option is intel quicksync decoding of H.264 10-bit 4:2:2 and 4:2:0 video on Linux through vaapi. Ideally this software auto-detects if this acceleration and others are available on the current machine.
 
 ## Dependencies
@@ -37,7 +39,6 @@ When optimizing, compare both runtime and fps on known clips.
 ## Files agents may add
 
 Small benchmark scripts, unit tests, fixtures using synthetic arrays and additional Markdown engineering notes are welcome. Do not vendor large video files into the repository.
-
 
 
 

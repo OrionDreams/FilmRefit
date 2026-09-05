@@ -4,7 +4,7 @@
 
 - **Framework Stack:** Use .NET 10 paired with Avalonia UI 12. Maintain strict adherence to the Model-View-ViewModel (MVVM) structural pattern.
 - **Cross-platform target:** Optimize day-to-day development for Linux, but keep Windows and macOS package paths in scope. Use `RuntimeInformation`, platform config directories and `System.IO.Path.Combine`; do not hard-code one OS's path conventions into shared logic.
-- **Transcoding boundary:** The Avalonia app orchestrates the existing Python transcoder. Do not reimplement detection logic in C# unless that is an explicit trascoder-porting task.
+- **Transcoding boundary:** The Avalonia app orchestrates the existing Python transcoder. Do not reimplement media detection or timecode extraction in C# unless that is an explicit transcoder-porting task. The wrapper should call the Python script for source metadata, currently through `transcoder/filmrefit.py --probe-json`.
 - **Standards** Use well-known industry standards for the .NET architecture. Use slnx for the solution. Adhere to the SOLID principles, especially the separation of concerns. However, do not overengineer the application just for the sake of separation of concerns. Use it where it makes sense.
 
 ## 2. UI Modularity (AXAML / Code-Behind)
@@ -29,7 +29,7 @@
 
 - **Property Notification:** All observable properties inside ViewModels must use the modern .NET CommunityToolkit.Mvvm source generators. Decorate properties with `[ObservableProperty]` and commands with `[RelayCommand]`. Do not write manual `INotifyPropertyChanged` backing fields.
 - **Thread Safety Isolation:** Long-running work must execute asynchronously through services so the UI thread stays responsive. If a background response needs to alter visual UI state, marshal the property update back to the main UI loop via `Dispatcher.UIThread.Post()`.
-- **Transcoderr subprocesses:** Run the Python transcoder through a service boundary, capture stdout/stderr asynchronously, and keep progress parsing in the ViewModel or a small UI-facing helper.
+- **Transcoder subprocesses:** Run the Python transcoder through a service boundary, capture stdout/stderr asynchronously, and keep progress parsing in the ViewModel or a small UI-facing helper.
 - **Persistent state:** Store app settings and processing history in the platform user config directory under `FilmRefit`.
 
 ## 4. Packaging & Release Compilation
