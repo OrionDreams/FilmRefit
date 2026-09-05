@@ -34,7 +34,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         ".mp4",
         ".mov",
         ".m4v",
-        ".mxf"
+        ".mxf",
+        ".lrf"
     };
 
     private readonly FilmRefitRuntime _runtime;
@@ -569,9 +570,29 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         foreach (var original in _clips.Where(clip => clip.IsOriginal).ToList())
         {
+            AddClipIfNew(FindExistingPath(TranscoderOutputNaming.BuildDjiProxyPath(original.Path)), loadDetails);
             AddClipIfNew(TranscoderOutputNaming.BuildOutputPath(original.Path, TranscodeMode.Proxy), loadDetails);
             AddClipIfNew(TranscoderOutputNaming.BuildOutputPath(original.Path, TranscodeMode.Mezzanine), loadDetails);
         }
+    }
+
+    private static string FindExistingPath(string path)
+    {
+        if (File.Exists(path))
+        {
+            return path;
+        }
+
+        var directory = Path.GetDirectoryName(path);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return path;
+        }
+
+        var fileName = Path.GetFileName(path);
+        return Directory.EnumerateFiles(directory)
+            .FirstOrDefault(candidate => string.Equals(Path.GetFileName(candidate), fileName, StringComparison.OrdinalIgnoreCase))
+            ?? path;
     }
 
     private static int GetOutputSortOrder(VideoClipViewModel clip)
@@ -579,9 +600,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return clip.OutputKind switch
         {
             TranscoderOutputKind.Original => 0,
-            TranscoderOutputKind.Proxy => 1,
-            TranscoderOutputKind.Mezzanine => 2,
-            _ => 3
+            TranscoderOutputKind.DjiProxy => 1,
+            TranscoderOutputKind.Proxy => 2,
+            TranscoderOutputKind.Mezzanine => 3,
+            _ => 4
         };
     }
 

@@ -95,6 +95,7 @@ public partial class VideoClipViewModel : ObservableObject
 
     public string BadgeText => OutputKind switch
     {
+        TranscoderOutputKind.DjiProxy => "DJI Proxy",
         TranscoderOutputKind.Proxy => "Proxy",
         TranscoderOutputKind.Mezzanine => "Mezzanine",
         _ => ""
