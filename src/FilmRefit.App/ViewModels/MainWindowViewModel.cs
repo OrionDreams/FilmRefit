@@ -699,7 +699,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         ProgressCurrentFileText = count <= 1
             ? clip.FileName
             : $"{clip.FileName} ({index} of {count})";
-        CurrentFileProgressText = "Current file: 0%";
+        CurrentFileProgressText = FormatCurrentFileProgressText("0%");
         CurrentFileEtaText = "ETA --";
         UpdateOverallProgress(0);
     }
@@ -712,7 +712,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         CurrentFileProgressValue = succeeded ? 100 : CurrentFileProgressValue;
-        CurrentFileProgressText = succeeded ? "Current file: 100%" : "Current file: failed";
+        CurrentFileProgressText = FormatCurrentFileProgressText(succeeded ? "100%" : "failed");
         CurrentFileEtaText = succeeded ? "ETA 0:00" : "ETA --";
         UpdateOverallProgress(succeeded ? 1 : CurrentFileProgressValue / 100);
     }
@@ -760,7 +760,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         var encodedSeconds = Math.Clamp(encodedTime.TotalSeconds, 0, durationSeconds);
         var fileFraction = durationSeconds <= 0 ? 0 : encodedSeconds / durationSeconds;
         CurrentFileProgressValue = Math.Clamp(fileFraction * 100, 0, 100);
-        CurrentFileProgressText = $"Current file: {CurrentFileProgressValue:0}%";
+        CurrentFileProgressText = FormatCurrentFileProgressText($"{CurrentFileProgressValue:0}%");
 
         if (double.TryParse(match.Groups["speed"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var speed)
             && speed > 0)
@@ -773,6 +773,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         UpdateOverallProgress(fileFraction);
+    }
+
+    private string FormatCurrentFileProgressText(string status)
+    {
+        return _processingClip is null
+            ? $"Current file: {status}"
+            : $"{_processingClip.FileName}: {status}";
     }
 
     private void UpdateOverallProgress(double currentFileFraction)

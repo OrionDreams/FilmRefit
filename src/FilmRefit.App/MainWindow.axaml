@@ -115,7 +115,7 @@
     </Style>
   </Window.Styles>
 
-  <Grid RowDefinitions="Auto,*,Auto,220" Background="{StaticResource AppBackgroundBrush}">
+  <Grid RowDefinitions="Auto,*,Auto,210" Background="{StaticResource AppBackgroundBrush}">
     <Border Padding="20,14" Background="#15181E">
       <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
         <StackPanel>
@@ -317,21 +317,20 @@
     </Grid>
 
     <Border Grid.Row="2" Margin="14,0,14,14" Classes="panel" Padding="14">
-      <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
+      <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-          <TextBlock Text="{Binding ProgressCurrentFileText}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+          <ProgressBar Minimum="0"
+                       Maximum="100"
+                       Value="{Binding CurrentFileProgressValue}"
+                       Height="12"
+                       VerticalAlignment="Center"/>
           <TextBlock Grid.Column="1" Text="{Binding CurrentFileEtaText}" Classes="secondary"/>
         </Grid>
-        <ProgressBar Grid.Row="1"
-                     Minimum="0"
-                     Maximum="100"
-                     Value="{Binding CurrentFileProgressValue}"
-                     Height="12"/>
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
           <TextBlock Text="{Binding CurrentFileProgressText}" Classes="muted"/>
           <TextBlock Grid.Column="1" Text="{Binding OverallProgressText}" Classes="muted"/>
         </Grid>
-        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
           <ProgressBar Minimum="0"
                        Maximum="100"
                        Value="{Binding OverallProgressValue}"
@@ -362,10 +361,8 @@
             <Run Text=" ("/><Run Text="{Binding SelectedClip.BitDepth}"/><Run Text=")"/>
           </TextBlock>
         </StackPanel>
-        <Grid Grid.Column="2" RowDefinitions="Auto,*" RowSpacing="8">
-          <TextBlock Text="Processing log" FontSize="17" FontWeight="SemiBold"/>
-          <TextBox Grid.Row="1"
-                   Text="{Binding LogText}"
+        <Grid Grid.Column="2">
+          <TextBox Text="{Binding LogText}"
                    AcceptsReturn="True"
                    IsReadOnly="True"
                    TextWrapping="NoWrap"
