@@ -128,7 +128,7 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" Margin="14" ColumnDefinitions="470,*,250" ColumnSpacing="14">
+    <Grid Grid.Row="1" Margin="14" ColumnDefinitions="490,*,250" ColumnSpacing="14">
       <Border Classes="panel" Padding="12">
         <Grid RowDefinitions="Auto,*" RowSpacing="12">
           <Grid ColumnDefinitions="*,120" ColumnSpacing="16" VerticalAlignment="Center">
