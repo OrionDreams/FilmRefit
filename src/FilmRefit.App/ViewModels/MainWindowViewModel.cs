@@ -18,7 +18,10 @@ namespace FilmRefit.App.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
+    private const int MaximumDisplayedLogLines = 2000;
+
     private static readonly TimeSpan MinimumPreviewRenderInterval = TimeSpan.FromSeconds(1.0 / 30);
+    private static readonly TimeSpan TranscodeLogFlushInterval = TimeSpan.FromMilliseconds(100);
     private static readonly Regex FfmpegProgressRegex = new(
         @"(?:^|\s)frame=\s*(?<frame>\d+).*?\btime=(?<time>\d+:\d{2}:\d{2}(?:\.\d+)?).*?\bspeed=\s*(?<speed>\d+(?:\.\d+)?)x",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -40,6 +43,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly PreviewPlaybackService _playbackService;
     private readonly IUserInteractionService _userInteraction;
     private readonly ObservableCollection<VideoClipViewModel> _clips = [];
+    private readonly object _pendingTranscodeLogLock = new();
+    private readonly Queue<string> _logLines = new();
+    private readonly List<string> _pendingTranscodeLogLines = [];
     private readonly Stopwatch _playbackClock = new();
     private readonly Stopwatch _batchClock = new();
     private readonly CancellationTokenSource _shutdownCancellation = new();
@@ -54,6 +60,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private int _processingClipIndex;
     private int _processingClipCount;
     private bool _suppressSeekRequest;
+    private bool _transcodeLogFlushScheduled;
     private bool _disposed;
 
     [ObservableProperty]
@@ -363,6 +370,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 AppendLog("");
                 AppendLog($"{clip.FileName}: starting {mode.ToString().ToLowerInvariant()}");
                 var result = await _transcodeService.TranscodeAsync(clip.Path, mode, OnTranscodeLogLine, _shutdownCancellation.Token);
+                await Dispatcher.UIThread.InvokeAsync(FlushPendingTranscodeLogLines);
                 clip.Status = result.ExitCode == 0 ? "Done" : "Failed";
                 if (result.ExitCode != 0)
                 {
@@ -586,16 +594,62 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void AppendLog(string line)
     {
-        LogText = string.IsNullOrEmpty(LogText) ? line : $"{LogText}{Environment.NewLine}{line}";
+        AppendLogLines([line]);
+    }
+
+    private void AppendLogLines(IEnumerable<string> lines)
+    {
+        foreach (var line in lines)
+        {
+            _logLines.Enqueue(line);
+        }
+
+        while (_logLines.Count > MaximumDisplayedLogLines)
+        {
+            _logLines.Dequeue();
+        }
+
+        LogText = string.Join(Environment.NewLine, _logLines);
     }
 
     private void OnTranscodeLogLine(string line)
     {
-        Dispatcher.UIThread.Post(() =>
+        lock (_pendingTranscodeLogLock)
         {
-            AppendLog(line);
+            _pendingTranscodeLogLines.Add(line);
+            if (_transcodeLogFlushScheduled)
+            {
+                return;
+            }
+
+            _transcodeLogFlushScheduled = true;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+            DispatcherTimer.RunOnce(FlushPendingTranscodeLogLines, TranscodeLogFlushInterval),
+            DispatcherPriority.Background);
+    }
+
+    private void FlushPendingTranscodeLogLines()
+    {
+        string[] lines;
+        lock (_pendingTranscodeLogLock)
+        {
+            lines = _pendingTranscodeLogLines.ToArray();
+            _pendingTranscodeLogLines.Clear();
+            _transcodeLogFlushScheduled = false;
+        }
+
+        if (lines.Length == 0 || _disposed)
+        {
+            return;
+        }
+
+        AppendLogLines(lines);
+        foreach (var line in lines)
+        {
             UpdateTranscodeProgress(line);
-        });
+        }
     }
 
     private void StartProgressBatch(int clipCount)
