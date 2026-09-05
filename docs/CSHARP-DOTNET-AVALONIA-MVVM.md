@@ -30,6 +30,7 @@
 - **Property Notification:** All observable properties inside ViewModels must use the modern .NET CommunityToolkit.Mvvm source generators. Decorate properties with `[ObservableProperty]` and commands with `[RelayCommand]`. Do not write manual `INotifyPropertyChanged` backing fields.
 - **Thread Safety Isolation:** Long-running work must execute asynchronously through services so the UI thread stays responsive. If a background response needs to alter visual UI state, marshal the property update back to the main UI loop via `Dispatcher.UIThread.Post()`.
 - **Transcoder subprocesses:** Run the Python transcoder through a service boundary, capture stdout/stderr asynchronously, and keep progress parsing in the ViewModel or a small UI-facing helper.
+- **Batch feedback:** The UI should surface per-file transcode results outside the raw processing log. Batch progress represents files processed, so failed files still advance the overall batch bar. If any file fails, keep the overall batch bar in an error state for the remainder of that batch. Clear per-file status rows at the start of a new batch. For known failures such as existing output files, show concise user-facing messages without full filesystem paths.
 - **Persistent state:** Store app settings and processing history in the platform user config directory under `FilmRefit`.
 
 ## 4. Packaging & Release Compilation
