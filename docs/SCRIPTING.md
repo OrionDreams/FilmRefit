@@ -840,16 +840,19 @@ Desired behavior for other cameras:
 
 ### 5. Better validation
 
-After successful encode, optionally validate output with ffprobe:
+After successful encode, validate generated proxies and mezzanines before reporting success in the Avalonia wrapper. Probe the output through the Python probe interface and compare its duration with the original clip duration. Allow up to one second of difference because container duration metadata can differ in the hundredths-of-a-second range, especially on 59.94/60 fps footage.
+
+If duration validation fails:
+- mark the per-file Status row as failed
+- keep the overall batch progress bar in its error state
+- report the original duration, output duration, and difference when available
+
+Future validation can also check:
 - expected codec
 - expected resolution
 - expected frame rate
 - expected pixel format
 - expected timecode
-- expected duration / frame count
-
-If validation fails:
-- mark as failed
 - optionally delete output
 
 ### 6. Logging
