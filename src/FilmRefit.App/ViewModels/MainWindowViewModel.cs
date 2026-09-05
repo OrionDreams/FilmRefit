@@ -286,11 +286,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         foreach (var path in newPaths)
         {
-            var clip = new VideoClipViewModel(path);
-            clip.PropertyChanged += OnClipPropertyChanged;
-            _clips.Add(clip);
+            AddClip(path);
         }
 
+        AddKnownOutputClips(loadDetails: false);
         RegroupClips();
         StatusText = newPaths.Count == 0
             ? "No new supported video files were found."
@@ -369,6 +368,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 {
                     AppendLog($"{clip.FileName}: failed with exit code {result.ExitCode}");
                 }
+                else
+                {
+                    AddClipIfNew(TranscoderOutputNaming.BuildOutputPath(clip.Path, mode), loadDetails: true);
+                    AddKnownOutputClips(loadDetails: true);
+                    RegroupClips();
+                }
 
                 FinishProgressFile(result.ExitCode == 0);
             }
@@ -402,12 +407,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private IReadOnlyList<VideoClipViewModel> GetActionClips()
     {
-        if (SelectedClips.Count > 0)
+        var selectedOriginals = SelectedClips.Where(clip => clip.IsOriginal).ToList();
+        if (selectedOriginals.Count > 0)
         {
-            return SelectedClips.ToList();
+            return selectedOriginals;
         }
 
-        return SelectedClip is null ? [] : [SelectedClip];
+        return SelectedClip switch
+        {
+            { IsOriginal: true } clip => [clip],
+            { ParentClip: not null } clip => [clip.ParentClip],
+            _ => []
+        };
     }
 
     private void OnClipPropertyChanged(object? sender, PropertyChangedEventArgs args)
@@ -427,7 +438,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         SelectedClips.CollectionChanged -= OnSelectedClipsChanged;
         SelectedClips.Clear();
-        foreach (var clip in _clips.Where(clip => clip.IsSelected))
+        foreach (var clip in _clips.Where(clip => clip.IsSelected && clip.IsOriginal))
         {
             SelectedClips.Add(clip);
         }
@@ -484,13 +495,86 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void RegroupClips()
     {
         DirectoryGroups.Clear();
-        foreach (var group in _clips
-                     .OrderBy(clip => clip.Directory, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(clip => clip.FileName, StringComparer.OrdinalIgnoreCase)
-                     .GroupBy(clip => clip.Directory))
+        foreach (var clip in _clips)
         {
-            DirectoryGroups.Add(new DirectoryGroupViewModel(group.Key, group));
+            clip.ParentClip = null;
+            clip.OutputClips.Clear();
         }
+
+        foreach (var group in _clips.GroupBy(clip => clip.Directory)
+                     .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var clips = group.ToList();
+            var originalsByStem = clips
+                .Where(clip => clip.IsOriginal)
+                .GroupBy(clip => clip.SourceStem, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(stemGroup => stemGroup.Key, stemGroup => stemGroup.First(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var output in clips.Where(clip => clip.IsOutput).OrderBy(GetOutputSortOrder).ThenBy(clip => clip.FileName, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!originalsByStem.TryGetValue(output.SourceStem, out var original))
+                {
+                    continue;
+                }
+
+                output.ParentClip = original;
+                original.OutputClips.Add(output);
+            }
+
+            var displayClips = clips
+                .Where(clip => clip.IsOriginal || clip.ParentClip is null)
+                .OrderBy(clip => clip.SourceStem, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(GetOutputSortOrder)
+                .ThenBy(clip => clip.FileName, StringComparer.OrdinalIgnoreCase);
+
+            DirectoryGroups.Add(new DirectoryGroupViewModel(group.Key, displayClips));
+        }
+    }
+
+    private VideoClipViewModel AddClip(string path)
+    {
+        var clip = new VideoClipViewModel(path);
+        clip.PropertyChanged += OnClipPropertyChanged;
+        _clips.Add(clip);
+        return clip;
+    }
+
+    private VideoClipViewModel? AddClipIfNew(string path, bool loadDetails)
+    {
+        if (!File.Exists(path)
+            || !SupportedVideoExtensions.Contains(Path.GetExtension(path))
+            || _clips.Any(clip => string.Equals(clip.Path, path, StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        var clip = AddClip(path);
+        if (loadDetails)
+        {
+            _ = LoadClipDetailsAsync(clip);
+        }
+
+        return clip;
+    }
+
+    private void AddKnownOutputClips(bool loadDetails)
+    {
+        foreach (var original in _clips.Where(clip => clip.IsOriginal).ToList())
+        {
+            AddClipIfNew(TranscoderOutputNaming.BuildOutputPath(original.Path, TranscodeMode.Proxy), loadDetails);
+            AddClipIfNew(TranscoderOutputNaming.BuildOutputPath(original.Path, TranscodeMode.Mezzanine), loadDetails);
+        }
+    }
+
+    private static int GetOutputSortOrder(VideoClipViewModel clip)
+    {
+        return clip.OutputKind switch
+        {
+            TranscoderOutputKind.Original => 0,
+            TranscoderOutputKind.Proxy => 1,
+            TranscoderOutputKind.Mezzanine => 2,
+            _ => 3
+        };
     }
 
     private static IEnumerable<string> EnumerateVideoFiles(string directory, bool recursive)

@@ -56,6 +56,26 @@
     <Style Selector="Border.clip.open">
       <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
     </Style>
+    <Style Selector="Border.outputRow">
+      <Setter Property="Background" Value="#161920"/>
+      <Setter Property="BorderBrush" Value="#303640"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="5"/>
+      <Setter Property="Padding" Value="7,5"/>
+    </Style>
+    <Style Selector="Border.outputRow.open">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+    </Style>
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="#B62A7E"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="7,2"/>
+    </Style>
+    <Style Selector="TextBlock.badgeText">
+      <Setter Property="Foreground" Value="#FFF4FB"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
     <Style Selector="Button">
       <Setter Property="MinHeight" Value="36"/>
       <Setter Property="Padding" Value="14,7"/>
@@ -129,36 +149,64 @@
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:VideoClipViewModel">
                           <Border Classes="clip" Classes.open="{Binding IsOpen}" Margin="0,0,0,8">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                              <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                        Command="{Binding #Root.DataContext.RefreshSelectionCommand}"
-                                        VerticalAlignment="Top"/>
-                              <Button Grid.Column="1"
-                                      Classes="flat"
-                                      Command="{Binding #Root.DataContext.OpenClipCommand}"
-                                      CommandParameter="{Binding}">
-                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                                  <Border Width="{Binding #Root.DataContext.ThumbnailSize}"
-                                          Height="{Binding #Root.DataContext.ThumbnailSize}"
-                                          Background="#0C0E12"
-                                          ClipToBounds="True">
-                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
-                                  </Border>
-                                  <StackPanel Grid.Column="1" Spacing="3">
-                                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding Resolution}" Classes="secondary"/>
-                                    <TextBlock Classes="muted">
-                                      <Run Text="{Binding FrameRate}"/><Run Text=" fps  |  "/><Run Text="{Binding Duration}"/>
-                                    </TextBlock>
-                                    <TextBlock Classes="muted">
-                                      <Run Text="V: "/><Run Text="{Binding VideoCodec}"/><Run Text="  A: "/><Run Text="{Binding AudioCodec}"/>
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding TimecodeDisplay}" Classes="muted"/>
-                                    <TextBlock Text="{Binding Status}" Classes="muted"/>
-                                  </StackPanel>
-                                </Grid>
-                              </Button>
-                            </Grid>
+                            <StackPanel Spacing="7">
+                              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          Command="{Binding #Root.DataContext.RefreshSelectionCommand}"
+                                          IsVisible="{Binding IsOriginal}"
+                                          VerticalAlignment="Top"/>
+                                <Button Grid.Column="1"
+                                        Classes="flat"
+                                        Command="{Binding #Root.DataContext.OpenClipCommand}"
+                                        CommandParameter="{Binding}">
+                                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                    <Border Width="{Binding #Root.DataContext.ThumbnailSize}"
+                                            Height="{Binding #Root.DataContext.ThumbnailSize}"
+                                            Background="#0C0E12"
+                                            ClipToBounds="True">
+                                      <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                      <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        <Border Classes="badge" IsVisible="{Binding HasBadge}">
+                                          <TextBlock Text="{Binding BadgeText}" Classes="badgeText"/>
+                                        </Border>
+                                      </StackPanel>
+                                      <TextBlock Text="{Binding Resolution}" Classes="secondary"/>
+                                      <TextBlock Classes="muted">
+                                        <Run Text="{Binding FrameRate}"/><Run Text=" fps  |  "/><Run Text="{Binding Duration}"/>
+                                      </TextBlock>
+                                      <TextBlock Classes="muted">
+                                        <Run Text="V: "/><Run Text="{Binding VideoCodec}"/><Run Text="  A: "/><Run Text="{Binding AudioCodec}"/>
+                                      </TextBlock>
+                                      <TextBlock Text="{Binding TimecodeDisplay}" Classes="muted"/>
+                                      <TextBlock Text="{Binding Status}" Classes="muted"/>
+                                    </StackPanel>
+                                  </Grid>
+                                </Button>
+                              </Grid>
+                              <ItemsControl ItemsSource="{Binding OutputClips}" Margin="42,0,0,0">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:VideoClipViewModel">
+                                    <Button Classes="flat"
+                                            Command="{Binding #Root.DataContext.OpenClipCommand}"
+                                            CommandParameter="{Binding}"
+                                            Margin="0,0,0,5">
+                                      <Border Classes="outputRow" Classes.open="{Binding IsOpen}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                          <Border Classes="badge">
+                                            <TextBlock Text="{Binding BadgeText}" Classes="badgeText"/>
+                                          </Border>
+                                          <TextBlock Grid.Column="1" Text="{Binding FileName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                          <TextBlock Grid.Column="2" Text="{Binding Status}" Classes="muted" VerticalAlignment="Center"/>
+                                        </Grid>
+                                      </Border>
+                                    </Button>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </StackPanel>
                           </Border>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>

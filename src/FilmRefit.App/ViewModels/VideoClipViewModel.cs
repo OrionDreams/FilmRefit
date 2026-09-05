@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FilmRefit.App.Services;
@@ -57,6 +58,9 @@ public partial class VideoClipViewModel : ObservableObject
     [ObservableProperty]
     private Bitmap? _previewFrame;
 
+    [ObservableProperty]
+    private VideoClipViewModel? _parentClip;
+
     public double? FrameRateValue { get; private set; }
 
     public double? DurationSeconds { get; private set; }
@@ -66,6 +70,7 @@ public partial class VideoClipViewModel : ObservableObject
         Path = path;
         FileName = System.IO.Path.GetFileName(path);
         Directory = System.IO.Path.GetDirectoryName(path) ?? "";
+        FilenameInfo = TranscoderOutputNaming.Classify(path);
     }
 
     public string Path { get; }
@@ -73,6 +78,27 @@ public partial class VideoClipViewModel : ObservableObject
     public string FileName { get; }
 
     public string Directory { get; }
+
+    public TranscoderFilenameInfo FilenameInfo { get; }
+
+    public TranscoderOutputKind OutputKind => FilenameInfo.Kind;
+
+    public string SourceStem => FilenameInfo.SourceStem;
+
+    public ObservableCollection<VideoClipViewModel> OutputClips { get; } = [];
+
+    public bool IsOutput => OutputKind != TranscoderOutputKind.Original;
+
+    public bool IsOriginal => OutputKind == TranscoderOutputKind.Original;
+
+    public bool HasBadge => IsOutput;
+
+    public string BadgeText => OutputKind switch
+    {
+        TranscoderOutputKind.Proxy => "Proxy",
+        TranscoderOutputKind.Mezzanine => "Mezzanine",
+        _ => ""
+    };
 
     public string TimecodeDisplay => string.IsNullOrWhiteSpace(Timecode) ? "No timecode" : Timecode;
 
