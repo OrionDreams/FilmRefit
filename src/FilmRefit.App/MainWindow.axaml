@@ -135,7 +135,7 @@
             </StackPanel>
             <StackPanel Grid.Column="1" Width="120">
               <TextBlock Text="Thumbnail" Classes="muted"/>
-              <Slider Minimum="128" Maximum="256" Value="{Binding ThumbnailSize}" TickFrequency="16"/>
+              <Slider Minimum="64" Maximum="256" Value="{Binding ThumbnailSize}" TickFrequency="16"/>
             </StackPanel>
           </Grid>
 
@@ -172,16 +172,22 @@
                                         <Border Classes="badge" IsVisible="{Binding HasBadge}">
                                           <TextBlock Text="{Binding BadgeText}" Classes="badgeText"/>
                                         </Border>
+                                        <TextBlock Text="{Binding Status}" Classes="muted" VerticalAlignment="Center"/>
                                       </StackPanel>
-                                      <TextBlock Text="{Binding Resolution}" Classes="secondary"/>
-                                      <TextBlock Classes="muted">
-                                        <Run Text="{Binding FrameRate}"/><Run Text=" fps  |  "/><Run Text="{Binding Duration}"/>
+                                      <TextBlock Classes="secondary">
+                                        <Run Text="{Binding Resolution}"/>
+                                        <Run Text="  ·  "/>
+                                        <Run Text="{Binding FrameRate}"/><Run Text=" fps"/>
+                                        <Run Text="  ·  "/>
+                                        <Run Text="{Binding Duration}"/>
                                       </TextBlock>
                                       <TextBlock Classes="muted">
-                                        <Run Text="V: "/><Run Text="{Binding VideoCodec}"/><Run Text="  A: "/><Run Text="{Binding AudioCodec}"/>
+                                        <Run Text="V: "/><Run Text="{Binding VideoCodec}"/>
+                                        <Run Text="  ·  "/>
+                                        <Run Text="A: "/><Run Text="{Binding AudioCodec}"/>
+                                        <Run Text="  ·  TC: "/>
+                                        <Run Text="{Binding TimecodeDisplay}"/>
                                       </TextBlock>
-                                      <TextBlock Text="{Binding TimecodeDisplay}" Classes="muted"/>
-                                      <TextBlock Text="{Binding Status}" Classes="muted"/>
                                     </StackPanel>
                                   </Grid>
                                 </Button>

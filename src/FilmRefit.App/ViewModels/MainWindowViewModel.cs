@@ -71,7 +71,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isProcessing;
 
     [ObservableProperty]
-    private double _thumbnailSize = 128;
+    private double _thumbnailSize = 64;
 
     [ObservableProperty]
     private double _playbackPositionSeconds;
