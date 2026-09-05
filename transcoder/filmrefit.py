@@ -81,8 +81,13 @@ def probe_file(path: Path) -> dict:
 
     for stream in data.get("streams", []):
         codec_type = stream.get("codec_type")
+        disposition = stream.get("disposition", {})
 
-        if codec_type == "video" and video is None:
+        if (
+            codec_type == "video"
+            and video is None
+            and disposition.get("attached_pic") != 1
+        ):
             video = stream
 
         elif codec_type == "audio" and audio is None:
@@ -108,17 +113,99 @@ def probe_file(path: Path) -> dict:
         timecode = video.get("tags", {}).get("timecode")
 
     if not timecode:
+        for stream in data.get("streams", []):
+            tc = stream.get("tags", {}).get("timecode")
+            if tc:
+                timecode = tc
+                break
+
+    if not timecode:
         timecode = data.get("format", {}).get("tags", {}).get("timecode")
 
     return {
         "codec": video.get("codec_name"),
+        "audio_codec": audio.get("codec_name") if audio else None,
         "fps": video.get("r_frame_rate"),
         "avg_fps": video.get("avg_frame_rate"),
         "pix_fmt": video.get("pix_fmt"),
+        "bits_per_raw_sample": video.get("bits_per_raw_sample"),
+        "color_space": video.get("color_space"),
+        "color_transfer": video.get("color_transfer"),
         "width": video.get("width"),
         "height": video.get("height"),
+        "duration": data.get("format", {}).get("duration"),
         "timecode": timecode,
         "has_audio": audio is not None,
+        "camera": camera_from_format_tags(data.get("format", {}).get("tags", {})),
+        "lens": read_tag(
+            data.get("format", {}).get("tags", {}),
+            "com.apple.quicktime.lens",
+        ) or read_tag(data.get("format", {}).get("tags", {}), "lens"),
+    }
+
+
+def read_tag(tags: dict, tag_name: str) -> Optional[str]:
+    for key, value in tags.items():
+        if key.lower() == tag_name.lower():
+            text = str(value).strip()
+            return text or None
+
+    return None
+
+
+def camera_from_format_tags(tags: dict) -> Optional[str]:
+    camera = (
+        read_tag(tags, "com.apple.quicktime.make")
+        or read_tag(tags, "make")
+    )
+
+    if camera:
+        return camera
+
+    encoder = read_tag(tags, "encoder")
+
+    if encoder and encoder.lower().startswith("dji "):
+        return encoder
+
+    return None
+
+
+def resolve_source_timecode(path: Path, probe: dict) -> dict:
+    sony_tc = parse_sony_timecode(path)
+
+    timecode = None
+    timecode_source = None
+    drop_frame = None
+    tc_fps = None
+    half_step = None
+
+    if sony_tc:
+        timecode = sony_tc["timecode"]
+        timecode_source = sony_tc["source"]
+        drop_frame = sony_tc["drop_frame"]
+        tc_fps = sony_tc["tc_fps"]
+        half_step = sony_tc["half_step"]
+
+    elif probe["timecode"]:
+        timecode = probe["timecode"]
+        timecode_source = "embedded ffprobe tag"
+
+    return {
+        "timecode": timecode,
+        "timecode_source": timecode_source,
+        "drop_frame": drop_frame,
+        "tc_fps": tc_fps,
+        "half_step": half_step,
+    }
+
+
+def probe_file_for_ui(path: Path) -> dict:
+    probe = probe_file(path)
+    source_timecode = resolve_source_timecode(path, probe)
+
+    return {
+        **probe,
+        **source_timecode,
     }
 
 
@@ -611,24 +698,8 @@ def process_file(
     # Timecode
     # -------------------------------------------------------------
 
-    sony_tc = parse_sony_timecode(input_path)
-
-    output_timecode = None
-
-    if sony_tc:
-        output_timecode = sony_tc["timecode"]
-
-    # If Sony parsing failed, we deliberately do not blindly use the
-    # ffprobe string because it may hide DF/NDF information.
-    elif probe["timecode"]:
-        print()
-        print(
-            "WARNING: source has a textual timecode but DF/NDF could "
-            "not be determined."
-        )
-        print(
-            "No output timecode will be written rather than guessing."
-        )
+    source_timecode = resolve_source_timecode(input_path, probe)
+    output_timecode = source_timecode["timecode"]
 
     # -------------------------------------------------------------
     # Information
@@ -641,36 +712,34 @@ def process_file(
     print(f"FPS       : {probe['fps']}")
     print(f"Mode      : {mode}")
 
-    if sony_tc:
-        print(f"Timecode  : {sony_tc['timecode']}")
-        print(
-            "TC format : "
-            + ("DF" if sony_tc["drop_frame"] else "NDF")
-        )
-        print(
-            f"TC FPS    : {sony_tc['tc_fps'] or 'unknown'}"
-        )
-        print(
-            f"Half-step : {sony_tc['half_step'] or 'unknown'}"
-        )
-        print(
-            f"TC source : {sony_tc['source']}"
-        )
+    if output_timecode:
+        print(f"Timecode  : {output_timecode}")
 
-        ffprobe_tc = probe["timecode"]
+        if source_timecode["drop_frame"] is not None:
+            print(
+                "TC format : "
+                + ("DF" if source_timecode["drop_frame"] else "NDF")
+            )
+            print(
+                f"TC FPS    : {source_timecode['tc_fps'] or 'unknown'}"
+            )
+            print(
+                f"Half-step : {source_timecode['half_step'] or 'unknown'}"
+            )
 
-        if ffprobe_tc:
-            normalized = sony_tc["timecode"].replace(";", ":")
+        else:
+            print("TC format : from embedded metadata")
 
-            if ffprobe_tc != normalized:
+        print(f"TC source : {source_timecode['timecode_source']}")
+
+        if source_timecode["drop_frame"] is not None and probe["timecode"]:
+            normalized = output_timecode.replace(";", ":")
+
+            if probe["timecode"] != normalized:
                 print()
                 print("WARNING: ffprobe and Sony LTC disagree:")
-                print(f"  ffprobe : {ffprobe_tc}")
-                print(f"  Sony    : {sony_tc['timecode']}")
-
-    elif probe["timecode"]:
-        print(f"Timecode  : {probe['timecode']}")
-        print("TC format : unknown")
+                print(f"  ffprobe : {probe['timecode']}")
+                print(f"  Sony    : {output_timecode}")
 
     else:
         print("Timecode  : none")
@@ -836,6 +905,12 @@ def main() -> int:
     )
 
     parser.add_argument(
+        "--probe-json",
+        action="store_true",
+        help="print source metadata as JSON and exit",
+    )
+
+    parser.add_argument(
         "input",
         type=Path,
         help="input video file or directory",
@@ -856,6 +931,18 @@ def main() -> int:
     # -------------------------------------------------------------
 
     if input_path.is_file():
+        if args.probe_json:
+            try:
+                print(json.dumps(probe_file_for_ui(input_path)))
+
+            except Exception as exc:
+                print(
+                    f"Error probing {input_path}: {exc}",
+                    file=sys.stderr,
+                )
+                return 1
+
+            return 0
 
         try:
             result = process_file(

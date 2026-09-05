@@ -20,29 +20,30 @@ public sealed record VideoMetadata(
     string BitDepth,
     string ColorSpace,
     string Timecode,
+    string TimecodeSource,
     string Camera,
     string Lens);
 
 public sealed class MediaProbeService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
+    private readonly FilmRefitRuntime _runtime;
     private readonly string _cacheDirectory = Path.Combine(Path.GetTempPath(), "FilmRefit", "thumbnails");
+
+    public MediaProbeService(FilmRefitRuntime runtime)
+    {
+        _runtime = runtime;
+    }
 
     public async Task<VideoMetadata> ProbeAsync(string path, CancellationToken cancellationToken = default)
     {
         var result = await ProcessRunner.RunAsync(
-            "ffprobe",
+            _runtime.PythonExecutable,
             [
-                "-v", "error",
-                "-show_streams",
-                "-show_format",
-                "-of", "json",
+                _runtime.TranscoderScript,
+                "--probe-json",
                 path
             ],
+            _runtime.RepositoryRoot,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -51,20 +52,13 @@ public sealed class MediaProbeService
         }
 
         using var document = JsonDocument.Parse(result.StandardOutput);
-        var streams = document.RootElement.GetProperty("streams").EnumerateArray().ToList();
-        var format = document.RootElement.TryGetProperty("format", out var formatElement)
-            ? formatElement
-            : default;
-        var video = streams.FirstOrDefault(stream => ReadString(stream, "codec_type") == "video");
-        var audio = streams.FirstOrDefault(stream => ReadString(stream, "codec_type") == "audio");
+        var root = document.RootElement;
 
-        var width = ReadInt(video, "width");
-        var height = ReadInt(video, "height");
-        var duration = ReadString(format, "duration");
-        var videoTags = ReadObject(video, "tags");
-        var formatTags = ReadObject(format, "tags");
+        var width = ReadInt(root, "width");
+        var height = ReadInt(root, "height");
+        var duration = ReadString(root, "duration");
 
-        var frameRateValue = ParseFrameRate(ReadString(video, "avg_frame_rate"), ReadString(video, "r_frame_rate"));
+        var frameRateValue = ParseFrameRate(ReadString(root, "avg_fps"), ReadString(root, "fps"));
         var durationSeconds = ParseDurationSeconds(duration);
 
         return new VideoMetadata(
@@ -73,16 +67,17 @@ public sealed class MediaProbeService
             frameRateValue,
             durationSeconds,
             width is not null && height is not null ? $"{width} x {height}" : "Unknown",
-            FormatFrameRate(frameRateValue, ReadString(video, "avg_frame_rate"), ReadString(video, "r_frame_rate")),
+            FormatFrameRate(frameRateValue, ReadString(root, "avg_fps"), ReadString(root, "fps")),
             FormatDuration(duration),
-            ReadString(video, "codec_name") ?? "Unknown",
-            ReadString(audio, "codec_name") ?? "None",
-            ReadString(video, "pix_fmt") ?? "Unknown",
-            InferBitDepth(ReadString(video, "pix_fmt"), ReadInt(video, "bits_per_raw_sample")),
-            ReadString(video, "color_space") ?? ReadString(video, "color_transfer") ?? "Unknown",
-            ReadTag(videoTags, "timecode") ?? ReadTag(formatTags, "timecode") ?? "",
-            ReadTag(formatTags, "com.apple.quicktime.make") ?? ReadTag(formatTags, "make") ?? "",
-            ReadTag(formatTags, "com.apple.quicktime.lens") ?? ReadTag(formatTags, "lens") ?? "");
+            ReadString(root, "codec") ?? "Unknown",
+            ReadString(root, "audio_codec") ?? "None",
+            ReadString(root, "pix_fmt") ?? "Unknown",
+            InferBitDepth(ReadString(root, "pix_fmt"), ReadInt(root, "bits_per_raw_sample")),
+            ReadString(root, "color_space") ?? ReadString(root, "color_transfer") ?? "Unknown",
+            ReadString(root, "timecode") ?? "",
+            ReadString(root, "timecode_source") ?? "",
+            ReadString(root, "camera") ?? "",
+            ReadString(root, "lens") ?? "");
     }
 
     public async Task<Bitmap?> GenerateFrameAsync(string path, int maxWidth, CancellationToken cancellationToken = default)
@@ -119,36 +114,23 @@ public sealed class MediaProbeService
         return Convert.ToHexString(hash)[..16].ToLowerInvariant();
     }
 
-    private static JsonElement? ReadObject(JsonElement element, string propertyName)
+    private static string? ReadString(JsonElement element, string propertyName)
     {
-        return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property)
-            ? property
-            : null;
-    }
-
-    private static string? ReadTag(JsonElement? tags, string tagName)
-    {
-        if (tags is null || tags.Value.ValueKind != JsonValueKind.Object)
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var property))
         {
             return null;
         }
 
-        foreach (var property in tags.Value.EnumerateObject())
+        if (property.ValueKind == JsonValueKind.Null)
         {
-            if (string.Equals(property.Name, tagName, StringComparison.OrdinalIgnoreCase))
-            {
-                return property.Value.GetString();
-            }
+            return null;
         }
 
-        return null;
-    }
-
-    private static string? ReadString(JsonElement element, string propertyName)
-    {
-        return element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property)
+        var value = property.ValueKind == JsonValueKind.String
             ? property.GetString()
-            : null;
+            : property.ToString();
+
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static int? ReadInt(JsonElement element, string propertyName)

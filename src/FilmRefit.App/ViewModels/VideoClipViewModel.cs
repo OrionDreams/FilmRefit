@@ -43,6 +43,9 @@ public partial class VideoClipViewModel : ObservableObject
     private string _timecode = "";
 
     [ObservableProperty]
+    private string _timecodeSource = "";
+
+    [ObservableProperty]
     private string _camera = "";
 
     [ObservableProperty]
@@ -90,6 +93,7 @@ public partial class VideoClipViewModel : ObservableObject
         BitDepth = metadata.BitDepth;
         ColorSpace = metadata.ColorSpace;
         Timecode = metadata.Timecode;
+        TimecodeSource = metadata.TimecodeSource;
         Camera = metadata.Camera;
         Lens = metadata.Lens;
         OnPropertyChanged(nameof(TimecodeDisplay));

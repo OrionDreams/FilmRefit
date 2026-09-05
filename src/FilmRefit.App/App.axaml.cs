@@ -19,7 +19,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var runtime = RuntimePaths.Discover();
-            var mediaProbe = new MediaProbeService();
+            var mediaProbe = new MediaProbeService(runtime);
             var playbackService = new PreviewPlaybackService();
             var viewModel = new MainWindowViewModel(
                 runtime,

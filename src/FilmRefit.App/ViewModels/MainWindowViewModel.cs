@@ -970,6 +970,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             clip.BitDepth,
             clip.ColorSpace,
             clip.Timecode,
+            clip.TimecodeSource,
             clip.Camera,
             clip.Lens);
     }
