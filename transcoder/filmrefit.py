@@ -78,10 +78,12 @@ def probe_file(path: Path) -> dict:
     video = None
     audio = None
     data_streams = []
+    has_sony_rtmd = False
 
     for stream in data.get("streams", []):
         codec_type = stream.get("codec_type")
         disposition = stream.get("disposition", {})
+        codec_tag = stream.get("codec_tag_string")
 
         if (
             codec_type == "video"
@@ -95,6 +97,8 @@ def probe_file(path: Path) -> dict:
 
         elif codec_type == "data":
             data_streams.append(stream)
+            if codec_tag == "rtmd":
+                has_sony_rtmd = True
 
     if video is None:
         raise RuntimeError("no video stream found")
@@ -136,6 +140,9 @@ def probe_file(path: Path) -> dict:
         "duration": data.get("format", {}).get("duration"),
         "timecode": timecode,
         "has_audio": audio is not None,
+        "has_sony_rtmd": has_sony_rtmd,
+        "format_brand": data.get("format", {}).get("tags", {}).get("major_brand"),
+        "compatible_brands": data.get("format", {}).get("tags", {}).get("compatible_brands"),
         "camera": camera_from_format_tags(data.get("format", {}).get("tags", {})),
         "lens": read_tag(
             data.get("format", {}).get("tags", {}),
@@ -170,8 +177,27 @@ def camera_from_format_tags(tags: dict) -> Optional[str]:
     return None
 
 
+def should_parse_sony_timecode(path: Path, probe: dict) -> bool:
+    if find_sidecar_xml(path):
+        return True
+
+    if probe.get("has_sony_rtmd"):
+        return True
+
+    brands = " ".join(
+        str(value)
+        for value in (
+            probe.get("format_brand"),
+            probe.get("compatible_brands"),
+        )
+        if value
+    ).lower()
+
+    return "xavc" in brands or "nras" in brands
+
+
 def resolve_source_timecode(path: Path, probe: dict) -> dict:
-    sony_tc = parse_sony_timecode(path)
+    sony_tc = parse_sony_timecode(path) if should_parse_sony_timecode(path, probe) else None
 
     timecode = None
     timecode_source = None

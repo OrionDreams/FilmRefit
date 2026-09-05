@@ -501,11 +501,13 @@ python3 transcoder/filmrefit.py --probe-json INPUT
 
 This JSON path uses the same source-timecode resolver as transcoding:
 
-1. Parse Sony LTC from sidecar XML or embedded `NonRealTimeMeta` when available.
+1. Parse Sony LTC from sidecar XML or embedded `NonRealTimeMeta` when available on Sony-like sources.
 2. Otherwise use embedded timecode tags reported by ffprobe, including standard `tmcd` timecode tracks.
 3. Otherwise return no timecode.
 
 The C# app should treat this JSON as display data only. It must not independently infer timecode or add fallbacks from filenames or recording timestamps.
+
+Do not scan every non-Sony file for embedded Sony XML. Tail-scanning large MP4 files is expensive on network storage, so Sony LTC parsing should be gated by evidence such as a Sony sidecar XML file, an `rtmd` stream, or XAVC/NRAS container branding.
 
 ---
 
