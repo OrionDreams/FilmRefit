@@ -57,11 +57,11 @@
       <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
     </Style>
     <Style Selector="Border.outputRow">
-      <Setter Property="Background" Value="#161920"/>
-      <Setter Property="BorderBrush" Value="#303640"/>
+      <Setter Property="Background" Value="#191D24"/>
+      <Setter Property="BorderBrush" Value="#2F3742"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="5"/>
-      <Setter Property="Padding" Value="7,5"/>
+      <Setter Property="CornerRadius" Value="0,0,7,7"/>
+      <Setter Property="Padding" Value="8,7"/>
     </Style>
     <Style Selector="Border.outputRow.open">
       <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
@@ -70,11 +70,14 @@
       <Setter Property="Background" Value="#B62A7E"/>
       <Setter Property="CornerRadius" Value="4"/>
       <Setter Property="Padding" Value="7,2"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
     <Style Selector="TextBlock.badgeText">
       <Setter Property="Foreground" Value="#FFF4FB"/>
       <Setter Property="FontSize" Value="11"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="LineHeight" Value="14"/>
     </Style>
     <Style Selector="Button">
       <Setter Property="MinHeight" Value="36"/>
@@ -128,19 +131,21 @@
     <Grid Grid.Row="1" Margin="14" ColumnDefinitions="470,*,250" ColumnSpacing="14">
       <Border Classes="panel" Padding="12">
         <Grid RowDefinitions="Auto,*" RowSpacing="12">
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-            <StackPanel>
-              <TextBlock Text="Loaded files" FontSize="18" FontWeight="SemiBold"/>
-              <TextBlock Text="{Binding SelectionText}" Classes="secondary"/>
-            </StackPanel>
-            <StackPanel Grid.Column="1" Width="120">
-              <TextBlock Text="Thumbnail" Classes="muted"/>
-              <Slider Minimum="64" Maximum="256" Value="{Binding ThumbnailSize}" TickFrequency="16"/>
-            </StackPanel>
+          <Grid ColumnDefinitions="*,120" ColumnSpacing="16" VerticalAlignment="Center">
+            <TextBlock FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center">
+              <Run Text="Files  ·  "/><Run Text="{Binding SelectionText}"/>
+            </TextBlock>
+            <Slider Grid.Column="1"
+                    Minimum="64"
+                    Maximum="256"
+                    Value="{Binding ThumbnailSize}"
+                    TickFrequency="16"
+                    ToolTip.Tip="thumbnail size"
+                    VerticalAlignment="Center"/>
           </Grid>
 
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding DirectoryGroups}">
+            <ItemsControl ItemsSource="{Binding DirectoryGroups}" Margin="0,0,12,0">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DirectoryGroupViewModel">
                   <StackPanel Margin="0,0,0,14">
@@ -192,14 +197,18 @@
                                   </Grid>
                                 </Button>
                               </Grid>
-                              <ItemsControl ItemsSource="{Binding OutputClips}" Margin="42,0,0,0">
+                              <ItemsControl ItemsSource="{Binding OutputClips}"
+                                            Margin="-8,2,-8,-8"
+                                            HorizontalAlignment="Stretch">
                                 <ItemsControl.ItemTemplate>
                                   <DataTemplate x:DataType="vm:VideoClipViewModel">
                                     <Button Classes="flat"
                                             Command="{Binding #Root.DataContext.OpenClipCommand}"
                                             CommandParameter="{Binding}"
-                                            Margin="0,0,0,5">
-                                      <Border Classes="outputRow" Classes.open="{Binding IsOpen}">
+                                            HorizontalAlignment="Stretch">
+                                      <Border Classes="outputRow"
+                                              Classes.open="{Binding IsOpen}"
+                                              HorizontalAlignment="Stretch">
                                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                           <Border Classes="badge">
                                             <TextBlock Text="{Binding BadgeText}" Classes="badgeText"/>

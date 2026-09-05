@@ -117,7 +117,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private string _mezzanineButtonText = "Create mezzanine";
 
     [ObservableProperty]
-    private string _selectionText = "No files selected";
+    private string _selectionText = "0 selected";
 
     [ObservableProperty]
     private string _progressCurrentFileText = "No active transcode";
@@ -450,7 +450,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void RefreshActionState()
     {
         var count = GetActionClips().Count;
-        SelectionText = count == 0 ? "No files selected" : $"{count} file(s) targeted";
+        SelectionText = $"{count} selected";
         ProxyButtonText = count <= 1 ? "Create proxy" : $"Create {count} proxies";
         MezzanineButtonText = count <= 1 ? "Create mezzanine" : $"Create {count} mezzanines";
         CreateProxyCommand.NotifyCanExecuteChanged();
