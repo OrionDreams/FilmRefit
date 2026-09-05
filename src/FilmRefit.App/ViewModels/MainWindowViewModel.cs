@@ -154,6 +154,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _overallProgressValue;
 
+    [ObservableProperty]
+    private bool _hasBatchError;
+
     public MainWindowViewModel(
         FilmRefitRuntime runtime,
         MediaProbeService mediaProbe,
@@ -692,6 +695,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _processingClip = null;
         _processingClipIndex = 0;
         _processingClipCount = clipCount;
+        HasBatchError = false;
         CurrentFileProgressValue = 0;
         OverallProgressValue = 0;
         ProgressCurrentFileText = "Preparing transcode";
@@ -723,10 +727,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        CurrentFileProgressValue = succeeded ? 100 : CurrentFileProgressValue;
+        CurrentFileProgressValue = 100;
         CurrentFileProgressText = FormatCurrentFileProgressText(succeeded ? "100%" : "failed");
         CurrentFileEtaText = succeeded ? "ETA 0:00" : "ETA --";
-        UpdateOverallProgress(succeeded ? 1 : CurrentFileProgressValue / 100);
+        HasBatchError |= !succeeded;
+        UpdateOverallProgress(1);
     }
 
     private void FinishProgressBatch()
@@ -867,9 +872,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         var completedFiles = Math.Max(0, _processingClipIndex - 1);
         var batchFraction = Math.Clamp((completedFiles + Math.Clamp(currentFileFraction, 0, 1)) / _processingClipCount, 0, 1);
         OverallProgressValue = batchFraction * 100;
+        var displayedCompletedFiles = Math.Min(_processingClipCount, completedFiles + (currentFileFraction >= 1 ? 1 : 0));
         OverallProgressText = _processingClipCount <= 1
             ? $"Batch: {OverallProgressValue:0}%"
-            : $"Batch: {completedFiles + currentFileFraction:0.0} of {_processingClipCount}";
+            : $"Batch: {displayedCompletedFiles} of {_processingClipCount}";
 
         OverallEtaText = batchFraction > 0 && _batchClock.IsRunning
             ? $"ETA {FormatDuration(TimeSpan.FromSeconds(_batchClock.Elapsed.TotalSeconds / batchFraction - _batchClock.Elapsed.TotalSeconds))}"

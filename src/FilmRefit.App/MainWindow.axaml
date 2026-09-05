@@ -104,7 +104,7 @@
     </Style>
     <Style Selector="TextBlock.statusFileName">
       <Setter Property="Foreground" Value="#F8FBF7"/>
-      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontSize" Value="12"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
@@ -146,6 +146,9 @@
     <Style Selector="ProgressBar">
       <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
       <Setter Property="Background" Value="#0E1116"/>
+    </Style>
+    <Style Selector="ProgressBar.batchError">
+      <Setter Property="Foreground" Value="#D84A5F"/>
     </Style>
   </Window.Styles>
 
@@ -402,6 +405,7 @@
         <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12">
           <ProgressBar Minimum="0"
                        Maximum="100"
+                       Classes.batchError="{Binding HasBatchError}"
                        Value="{Binding OverallProgressValue}"
                        Height="4"
                        VerticalAlignment="Center"/>
