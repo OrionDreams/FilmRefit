@@ -12,7 +12,8 @@
         Width="1480"
         Height="920"
         MinWidth="1120"
-        MinHeight="720">
+        MinHeight="720"
+        Icon="/Assets/Icons/FilmRefit.ico">
   <Window.Resources>
     <SolidColorBrush x:Key="AppBackgroundBrush" Color="#101114"/>
     <SolidColorBrush x:Key="PanelBrush" Color="#171A20"/>

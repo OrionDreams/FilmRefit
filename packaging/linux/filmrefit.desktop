@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=FilmRefit
+Comment=Video transcoding, proxy, and media preparation for post-production
+Exec=FilmRefit
+Icon=filmrefit
+Terminal=false
+Categories=AudioVideo;Video;AudioVideoEditing;
+StartupNotify=true
