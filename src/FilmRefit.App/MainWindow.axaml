@@ -316,7 +316,11 @@
       </Border>
     </Grid>
 
-    <Border Grid.Row="2" Margin="14,0,14,14" Classes="panel" Padding="14">
+    <Border Grid.Row="2"
+            Margin="14,0,14,14"
+            Classes="panel"
+            Padding="14"
+            IsVisible="{Binding IsProgressVisible}">
       <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
           <ProgressBar Minimum="0"

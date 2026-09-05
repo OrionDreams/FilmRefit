@@ -131,6 +131,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private string _progressCurrentFileText = "No active transcode";
 
     [ObservableProperty]
+    private bool _isProgressVisible;
+
+    [ObservableProperty]
     private string _currentFileProgressText = "Current file: 0%";
 
     [ObservableProperty]
@@ -676,6 +679,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void StartProgressBatch(int clipCount)
     {
+        IsProgressVisible = true;
         _batchClock.Restart();
         _processingClip = null;
         _processingClipIndex = 0;
