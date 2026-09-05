@@ -19,6 +19,7 @@ namespace FilmRefit.App.ViewModels;
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private const int MaximumDisplayedLogLines = 2000;
+    private const double OutputDurationToleranceSeconds = 1.0;
 
     private static readonly TimeSpan MinimumPreviewRenderInterval = TimeSpan.FromSeconds(1.0 / 30);
     private static readonly TimeSpan TranscodeLogFlushInterval = TimeSpan.FromMilliseconds(100);
@@ -384,21 +385,31 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 var result = await _transcodeService.TranscodeAsync(clip.Path, mode, OnTranscodeLogLine, _shutdownCancellation.Token);
                 await Dispatcher.UIThread.InvokeAsync(FlushPendingTranscodeLogLines);
                 var succeeded = result.ExitCode == 0;
-                clip.Status = succeeded ? "Done" : "Failed";
+                var outputPath = TranscoderOutputNaming.BuildOutputPath(clip.Path, mode);
                 var errorText = succeeded ? "" : ExtractTranscodeFailureMessage(result, clip.Path, mode);
+                if (succeeded)
+                {
+                    clip.Status = mode == TranscodeMode.Proxy ? "Validating proxy" : "Validating mezzanine";
+                    errorText = await ValidateOutputDurationAsync(clip, outputPath, _shutdownCancellation.Token);
+                    succeeded = string.IsNullOrWhiteSpace(errorText);
+                }
+
+                clip.Status = succeeded ? "Done" : "Failed";
                 TranscodeStatusItems.Insert(0, new TranscodeStatusItemViewModel(mode, clip.FileName, succeeded, errorText));
                 if (!succeeded)
                 {
-                    AppendLog($"{clip.FileName}: failed with exit code {result.ExitCode}");
+                    AppendLog(result.ExitCode == 0
+                        ? $"{clip.FileName}: validation failed: {errorText}"
+                        : $"{clip.FileName}: failed with exit code {result.ExitCode}");
                 }
                 else
                 {
-                    AddClipIfNew(TranscoderOutputNaming.BuildOutputPath(clip.Path, mode), loadDetails: true);
+                    AddClipIfNew(outputPath, loadDetails: true);
                     AddKnownOutputClips(loadDetails: true);
                     RegroupClips();
                 }
 
-                FinishProgressFile(result.ExitCode == 0);
+                FinishProgressFile(succeeded);
             }
         }
         catch (OperationCanceledException) when (_shutdownCancellation.IsCancellationRequested)
@@ -798,6 +809,61 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return _processingClip is null
             ? $"Current file: {status}"
             : $"{_processingClip.FileName}: {status}";
+    }
+
+    private async Task<string> ValidateOutputDurationAsync(
+        VideoClipViewModel sourceClip,
+        string outputPath,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(outputPath))
+        {
+            return "Output file was not created";
+        }
+
+        var sourceDuration = sourceClip.DurationSeconds;
+        if (sourceDuration is not > 0)
+        {
+            try
+            {
+                sourceDuration = (await _mediaProbe.ProbeAsync(sourceClip.Path, cancellationToken)).DurationSeconds;
+            }
+            catch (Exception exc) when (exc is not OperationCanceledException)
+            {
+                return $"Could not validate duration: original probe failed ({exc.Message})";
+            }
+        }
+
+        if (sourceDuration is not > 0)
+        {
+            return "Could not validate duration: original duration is unknown";
+        }
+
+        VideoMetadata outputMetadata;
+        try
+        {
+            outputMetadata = await _mediaProbe.ProbeAsync(outputPath, cancellationToken);
+        }
+        catch (Exception exc) when (exc is not OperationCanceledException)
+        {
+            return $"Could not validate duration: output probe failed ({exc.Message})";
+        }
+
+        if (outputMetadata.DurationSeconds is not > 0)
+        {
+            return "Could not validate duration: output duration is unknown";
+        }
+
+        var difference = Math.Abs(outputMetadata.DurationSeconds.Value - sourceDuration.Value);
+        if (difference <= OutputDurationToleranceSeconds)
+        {
+            return "";
+        }
+
+        return "Duration mismatch: "
+            + $"original {FormatDuration(TimeSpan.FromSeconds(sourceDuration.Value))}, "
+            + $"output {FormatDuration(TimeSpan.FromSeconds(outputMetadata.DurationSeconds.Value))}, "
+            + $"difference {FormatDurationWithSeconds(TimeSpan.FromSeconds(difference))}";
     }
 
     private static string ExtractTranscodeFailureMessage(ProcessResult result, string inputPath, TranscodeMode mode)
@@ -1234,5 +1300,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return value.TotalHours >= 1
             ? value.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
             : value.ToString(@"m\:ss", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatDurationWithSeconds(TimeSpan value)
+    {
+        return value.TotalHours >= 1
+            ? value.ToString(@"h\:mm\:ss\.f", CultureInfo.InvariantCulture)
+            : value.ToString(@"m\:ss\.f", CultureInfo.InvariantCulture);
     }
 }
