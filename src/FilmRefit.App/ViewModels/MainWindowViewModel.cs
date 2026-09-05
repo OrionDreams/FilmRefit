@@ -696,6 +696,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _processingClipIndex = 0;
         _processingClipCount = clipCount;
         HasBatchError = false;
+        TranscodeStatusItems.Clear();
         CurrentFileProgressValue = 0;
         OverallProgressValue = 0;
         ProgressCurrentFileText = "Preparing transcode";
