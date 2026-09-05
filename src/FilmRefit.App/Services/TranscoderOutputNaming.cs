@@ -3,7 +3,7 @@ namespace FilmRefit.App.Services;
 public static class TranscoderOutputNaming
 {
     public const string ProxySuffix = "_PROXY";
-    public const string MezzanineSuffix = "_DNxHR_HQX";
+    public const string MezzanineSuffix = "_MEZZANINE";
 
     public static TranscoderFilenameInfo Classify(string path)
     {

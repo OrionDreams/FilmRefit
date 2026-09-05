@@ -241,7 +241,7 @@ Purpose:
 Expected output name:
 
 ```text
-<NAME>_DNxHR_HQX.mov
+<NAME>_MEZZANINE.mov
 ```
 
 ### `proxy`
@@ -734,7 +734,7 @@ Again, include `-timecode` only when the Python source-timecode resolver returns
 HQX:
 
 ```text
-C2787_DNxHR_HQX.mov
+C2787_MEZZANINE.mov
 ```
 
 Proxy:

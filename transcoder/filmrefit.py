@@ -471,7 +471,7 @@ def parse_sony_timecode(path: Path) -> Optional[dict]:
 def build_output_path(input_path: Path, mode: str) -> Path:
     if mode == "hqx":
         return input_path.with_name(
-            f"{input_path.stem}_DNxHR_HQX.mov"
+            f"{input_path.stem}_MEZZANINE.mov"
         )
 
     if mode == "proxy":
