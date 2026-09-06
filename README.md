@@ -66,6 +66,13 @@ You can override the target runtime:
 RUNTIME_IDENTIFIER=linux-x64 ./tools/publish-app.sh
 ```
 
+## Releases
+
+GitHub Actions builds release packages when a `v*` tag points to a commit on
+`main`. Release builds create Windows x64, Linux x64, macOS Apple Silicon, and
+macOS Intel artifacts. They also package pinned FFmpeg/FFprobe binaries and a
+PyInstaller-built `filmrefit-transcoder` executable.
+
 ## Command-Line Transcoding
 
 The Python transcoder can also be used directly.
@@ -107,6 +114,17 @@ Generated outputs are written next to the source media:
 FilmRefit treats the Python transcoder as the source of truth for media probing and timecode detection. The desktop app does not infer timecode from filenames, file timestamps, or other non-timecode metadata.
 
 ## Development
+
+FilmRefit's Python runtime target is pinned in `.python-version`. For local source
+development, create a Python 3.11 virtual environment at the repository root:
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+The desktop app automatically uses `.venv` when it exists, then falls back to the
+system Python executable.
 
 Build the solution:
 

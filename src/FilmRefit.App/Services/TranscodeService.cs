@@ -17,19 +17,35 @@ public sealed class TranscodeService
     {
         var arguments = new List<string>
         {
-            _runtime.TranscoderScript,
             "--mode",
             mode == TranscodeMode.Proxy ? "proxy" : "hqx",
             inputPath
         };
 
         return ProcessRunner.RunAsync(
-            _runtime.PythonExecutable,
-            arguments,
+            TranscoderExecutable(),
+            TranscoderArguments(arguments),
             _runtime.RepositoryRoot,
             log,
             log,
+            _runtime.FfmpegDirectory,
             cancellationToken);
+    }
+
+    private string TranscoderExecutable() =>
+        _runtime.TranscoderExecutable ?? _runtime.PythonExecutable;
+
+    private IEnumerable<string> TranscoderArguments(IEnumerable<string> arguments)
+    {
+        if (_runtime.TranscoderExecutable is null)
+        {
+            yield return _runtime.TranscoderScript;
+        }
+
+        foreach (var argument in arguments)
+        {
+            yield return argument;
+        }
     }
 }
 

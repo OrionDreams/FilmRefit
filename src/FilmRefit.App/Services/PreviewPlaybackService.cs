@@ -10,6 +10,7 @@ public sealed class PreviewPlaybackService : IDisposable
     private const int MaxQueuedFrames = 6;
     private const int BytesPerPixel = 4;
 
+    private readonly FilmRefitRuntime _runtime;
     private CancellationTokenSource? _processCancellation;
     private Process? _process;
     private Task? _frameReaderTask;
@@ -19,6 +20,11 @@ public sealed class PreviewPlaybackService : IDisposable
     public ChannelReader<PreviewFrame> Frames => _frames.Reader;
 
     public PreviewPlaybackState State { get; private set; } = PreviewPlaybackState.Empty;
+
+    public PreviewPlaybackService(FilmRefitRuntime runtime)
+    {
+        _runtime = runtime;
+    }
 
     public async Task StartAsync(
         string path,
@@ -41,13 +47,23 @@ public sealed class PreviewPlaybackService : IDisposable
         _processCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         State = new PreviewPlaybackState(path, size.Width, size.Height, TimeSpan.FromSeconds(1 / frameRate), startPosition);
 
-        var startInfo = new ProcessStartInfo("ffmpeg")
+        var startInfo = new ProcessStartInfo(_runtime.FfmpegExecutable)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
         };
+
+        if (!string.IsNullOrWhiteSpace(_runtime.FfmpegDirectory))
+        {
+            var existingPath = startInfo.Environment.TryGetValue("PATH", out var existingPathValue)
+                ? existingPathValue
+                : Environment.GetEnvironmentVariable("PATH") ?? "";
+            startInfo.Environment["PATH"] = string.IsNullOrWhiteSpace(existingPath)
+                ? _runtime.FfmpegDirectory
+                : _runtime.FfmpegDirectory + Path.PathSeparator + existingPath;
+        }
 
         foreach (var argument in BuildArguments(path, startPosition, size.Width, size.Height))
         {

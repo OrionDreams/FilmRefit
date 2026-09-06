@@ -1,6 +1,6 @@
 FFmpeg 9.0.1 for macOS x86_64
 
-MeteorDetect macOS Intel FFmpeg build:
+FilmRefit macOS Intel FFmpeg build:
 Provider: Evermeet
 Target version: FFmpeg 9.0.1
 Architecture: x86_64

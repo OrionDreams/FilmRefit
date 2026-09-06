@@ -2,7 +2,9 @@
 
 import argparse
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -13,6 +15,33 @@ from typing import Optional
 VAAPI_DEVICE = "/dev/dri/renderD129"
 EXTRA_HW_FRAMES = "128"
 FFMPEG_STATS_PERIOD_SECONDS = "5"
+
+
+def resolve_runtime_tool(name: str) -> str:
+    env_name = f"FILMREFIT_{name.upper()}"
+    configured = os.environ.get(env_name)
+    if configured:
+        return configured
+
+    executable = f"{name}.exe" if sys.platform == "win32" else name
+    candidates = []
+
+    if getattr(sys, "frozen", False):
+        executable_path = Path(sys.executable).resolve()
+        candidates.append(executable_path.parent.parent / "ffmpeg" / executable)
+
+    script_root = Path(__file__).resolve().parent.parent
+    candidates.append(script_root / "runtime" / "ffmpeg" / executable)
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+
+    return shutil.which(executable) or executable
+
+
+FFMPEG = resolve_runtime_tool("ffmpeg")
+FFPROBE = resolve_runtime_tool("ffprobe")
 
 
 # ---------------------------------------------------------------------
@@ -65,7 +94,7 @@ def format_command(cmd: list[str]) -> str:
 
 def probe_file(path: Path) -> dict:
     output = run_capture([
-        "ffprobe",
+        FFPROBE,
         "-v", "error",
         "-show_streams",
         "-show_format",
@@ -495,7 +524,7 @@ def build_ffmpeg_command(
 ) -> list[str]:
 
     cmd = [
-        "ffmpeg",
+        FFMPEG,
         "-nostdin",
         "-stats_period", FFMPEG_STATS_PERIOD_SECONDS,
     ]

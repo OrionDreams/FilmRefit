@@ -183,7 +183,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool HasSelectedClip => SelectedClip is not null;
 
-    public string RuntimeText => $"Python: {_runtime.PythonExecutable} | Transcoder: {_runtime.TranscoderScript}";
+    public string RuntimeText => _runtime.UsesBundledTranscoderExecutable
+        ? $"Transcoder: {_runtime.TranscoderExecutable} | FFmpeg: {_runtime.FfmpegExecutable}"
+        : $"Python: {_runtime.PythonExecutable} | Transcoder: {_runtime.TranscoderScript} | FFmpeg: {_runtime.FfmpegExecutable}";
 
     [RelayCommand(CanExecute = nameof(CanLoadFiles))]
     private async Task AddFilesAsync()

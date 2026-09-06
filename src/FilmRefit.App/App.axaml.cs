@@ -20,7 +20,7 @@ public partial class App : Application
         {
             var runtime = RuntimePaths.Discover();
             var mediaProbe = new MediaProbeService(runtime);
-            var playbackService = new PreviewPlaybackService();
+            var playbackService = new PreviewPlaybackService(runtime);
             var viewModel = new MainWindowViewModel(
                 runtime,
                 mediaProbe,

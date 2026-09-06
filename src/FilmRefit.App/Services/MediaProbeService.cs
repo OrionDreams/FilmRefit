@@ -37,13 +37,10 @@ public sealed class MediaProbeService
     public async Task<VideoMetadata> ProbeAsync(string path, CancellationToken cancellationToken = default)
     {
         var result = await ProcessRunner.RunAsync(
-            _runtime.PythonExecutable,
-            [
-                _runtime.TranscoderScript,
-                "--probe-json",
-                path
-            ],
+            TranscoderExecutable(),
+            TranscoderArguments(["--probe-json", path]),
             _runtime.RepositoryRoot,
+            environmentPathPrepend: _runtime.FfmpegDirectory,
             cancellationToken: cancellationToken);
 
         if (result.ExitCode != 0)
@@ -87,7 +84,7 @@ public sealed class MediaProbeService
         if (!File.Exists(outputPath))
         {
             var result = await ProcessRunner.RunAsync(
-                "ffmpeg",
+                _runtime.FfmpegExecutable,
                 [
                     "-y",
                     "-v", "error",
@@ -96,6 +93,7 @@ public sealed class MediaProbeService
                     "-vf", $"scale={maxWidth}:-1",
                     outputPath
                 ],
+                environmentPathPrepend: _runtime.FfmpegDirectory,
                 cancellationToken: cancellationToken);
 
             if (result.ExitCode != 0 || !File.Exists(outputPath))
@@ -106,6 +104,22 @@ public sealed class MediaProbeService
 
         await using var stream = File.OpenRead(outputPath);
         return new Bitmap(stream);
+    }
+
+    private string TranscoderExecutable() =>
+        _runtime.TranscoderExecutable ?? _runtime.PythonExecutable;
+
+    private IEnumerable<string> TranscoderArguments(IEnumerable<string> arguments)
+    {
+        if (_runtime.TranscoderExecutable is null)
+        {
+            yield return _runtime.TranscoderScript;
+        }
+
+        foreach (var argument in arguments)
+        {
+            yield return argument;
+        }
     }
 
     private static string HashPath(string path)

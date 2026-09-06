@@ -13,6 +13,7 @@ public static class ProcessRunner
         string? workingDirectory = null,
         Action<string>? onOutputLine = null,
         Action<string>? onErrorLine = null,
+        string? environmentPathPrepend = null,
         CancellationToken cancellationToken = default)
     {
         var startInfo = new ProcessStartInfo(executable)
@@ -26,6 +27,16 @@ public static class ProcessRunner
         if (!string.IsNullOrWhiteSpace(workingDirectory))
         {
             startInfo.WorkingDirectory = workingDirectory;
+        }
+
+        if (!string.IsNullOrWhiteSpace(environmentPathPrepend))
+        {
+            var existingPath = startInfo.Environment.TryGetValue("PATH", out var path)
+                ? path
+                : Environment.GetEnvironmentVariable("PATH") ?? "";
+            startInfo.Environment["PATH"] = string.IsNullOrWhiteSpace(existingPath)
+                ? environmentPathPrepend
+                : environmentPathPrepend + Path.PathSeparator + existingPath;
         }
 
         foreach (var argument in arguments)

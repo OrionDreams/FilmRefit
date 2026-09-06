@@ -3,6 +3,10 @@
 __pycache__/
 **/__pycache__/
 .dotnet/
+.venv/
+build/
+dist/
+*.spec
 src/**/bin/
 src/**/obj/
 /artifacts/

@@ -3,5 +3,5 @@ Assembled: 2026-09-06
 Local source versions used for files copied from installed packages:
 - CPython license source: system Python 3.13
 
-These are NOT necessarily the versions currently shipped by MeteorDetect because its
-Python release dependencies are not fully pinned.
+These are NOT necessarily the versions currently shipped by FilmRefit because its
+release dependencies are not fully pinned.
