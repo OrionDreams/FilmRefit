@@ -2,6 +2,10 @@
 
 All notable changes to FilmRefit will be documented in this file.
 
+## Unreleased
+
+- Added a DaVinci Resolve Lua proxy linker and app Settings screen controls to install or open the Resolve scripts folder.
+
 ## v0.1.0 - 2026-09-06
 
 - Initial GitHub-ready release setup.

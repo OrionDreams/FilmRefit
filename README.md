@@ -19,6 +19,7 @@ The app can load individual files or directories, inspect clip metadata, show th
 - Generate DNxHR HQX mezzanine files at source resolution and bit depth.
 - Preserve source timecode using the Python transcoder probe and parsing layer.
 - Show per-file batch progress, overall progress, ETA, success, and failure status.
+- Install a DaVinci Resolve Lua utility script that batch-links FilmRefit proxies in the Resolve media pool.
 - Support a command-line transcoding path through `transcoder/filmrefit.py`.
 
 ## Project Structure
@@ -26,10 +27,26 @@ The app can load individual files or directories, inspect clip metadata, show th
 ```text
 src/FilmRefit.App/        Avalonia desktop application
 transcoder/               Python FFmpeg transcoding and probe engine
+resolve_importer/         DaVinci Resolve Lua proxy-linking utility
 tools/                    Development, build, run, publish, and icon scripts
 docs/                     Architecture and implementation notes
 packaging/                Linux, macOS, and web packaging assets
 ```
+
+## DaVinci Resolve Proxy Linking
+
+FilmRefit includes `FilmRefit Proxy Linker.lua`, a Resolve utility script that scans the current project's media pool and links existing proxies named next to their source clips.
+
+The desktop app can install the script from **Settings -> DaVinci Resolve integration**. After installation, restart Resolve and run **Workspace -> Scripts -> FilmRefit Proxy Linker**.
+
+The expected proxy naming convention is:
+
+```text
+Source: /path/to/Clip001.mov
+Proxy:  /path/to/Clip001_PROXY.mov
+```
+
+The linker currently checks `mov`, `mp4`, and `mxf` proxy extensions with common uppercase variants.
 
 ## Requirements
 

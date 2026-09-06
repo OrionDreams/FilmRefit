@@ -294,9 +294,10 @@ dependencies should be re-audited.
 DaVinci Resolve is proprietary software from Blackmagic Design and is not distributed
 with FilmRefit.
 
-FilmRefit generates JSON data and provides an importer script that interoperates
-with DaVinci Resolve. References to DaVinci Resolve or Blackmagic Design are
-descriptive and do not imply sponsorship, endorsement, or affiliation.
+FilmRefit provides a Lua utility script that interoperates with DaVinci Resolve
+by linking existing proxy media through Resolve's scripting API. References to
+DaVinci Resolve or Blackmagic Design are descriptive and do not imply sponsorship,
+endorsement, or affiliation.
 
 ---
 

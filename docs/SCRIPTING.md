@@ -769,6 +769,38 @@ not merely:
 59.940
 ```
 
+FilmRefit also includes a self-contained DaVinci Resolve Lua utility script:
+
+```text
+resolve_importer/FilmRefit Proxy Linker.lua
+```
+
+The script scans all bins in the current Resolve project's media pool and links existing proxies with Resolve's `LinkProxyMedia` scripting API. It does not create proxies or inspect media essence.
+
+Proxy discovery is intentionally deterministic. For a source clip:
+
+```text
+/path/to/Clip001.mov
+```
+
+the script checks sibling files named:
+
+```text
+/path/to/Clip001_PROXY.mov
+/path/to/Clip001_PROXY.MOV
+/path/to/Clip001_PROXY.mp4
+/path/to/Clip001_PROXY.MP4
+/path/to/Clip001_PROXY.mxf
+/path/to/Clip001_PROXY.MXF
+```
+
+The Avalonia app exposes installation from its Settings screen. The installer chooses the first existing per-user Resolve scripts directory from known platform candidates, or falls back to the standard default for that OS. The current Windows candidates include:
+
+```text
+%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Utility
+%USERPROFILE%\AppData\Roaming\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Utility
+```
+
 ---
 
 ## Future / likely enhancements
