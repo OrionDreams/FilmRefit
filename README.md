@@ -137,3 +137,7 @@ The desktop app uses:
 ## Status
 
 FilmRefit is early-stage software. The current baseline is CPU-only and GPU-vendor-independent, with optional hardware acceleration paths being explored where they fit the workflow without becoming hard requirements.
+
+## License
+
+FilmRefit is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
