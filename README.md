@@ -2,6 +2,7 @@
 
 FilmRefit is a desktop transcoding tool for creating timecode-preserving proxies and mezzanine media for post-production workflows.
 
+One of its main use cases is creating proxies quickly, using hardware acceleration where supported, for situations where your NLE cannot hardware-decode the original media, such as DaVinci Resolve on Linux or Kdenlive.
 
 ![FilmRefit.jpg](presentation-media/FilmRefit.jpg)
 
