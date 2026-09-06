@@ -24,6 +24,12 @@
     <SolidColorBrush x:Key="TextMutedBrush" Color="#858D99"/>
     <SolidColorBrush x:Key="AccentBrush" Color="#7FC7B1"/>
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#5DA891"/>
+    <SolidColorBrush x:Key="SliderTrackValueFill" Color="#7FC7B1"/>
+    <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#7FC7B1"/>
+    <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#5DA891"/>
+    <SolidColorBrush x:Key="SliderThumbBackground" Color="#7FC7B1"/>
+    <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#7FC7B1"/>
+    <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#5DA891"/>
   </Window.Resources>
 
   <Window.Styles>
@@ -147,6 +153,25 @@
     <Style Selector="ProgressBar">
       <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
       <Setter Property="Background" Value="#0E1116"/>
+    </Style>
+    <Style Selector="Slider:horizontal">
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+      <Style Selector="^ Track">
+        <Style Selector="^ Thumb">
+          <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+          <Setter Property="MinWidth" Value="18"/>
+          <Setter Property="MinHeight" Value="18"/>
+        </Style>
+      </Style>
+      <Style Selector="^:pointerover /template/ RepeatButton#PART_DecreaseButton">
+        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+      </Style>
+      <Style Selector="^:pressed /template/ RepeatButton#PART_DecreaseButton">
+        <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
+      </Style>
+      <Style Selector="^:pointerover /template/ Thumb">
+        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+      </Style>
     </Style>
     <Style Selector="ProgressBar.batchError">
       <Setter Property="Foreground" Value="#D84A5F"/>
