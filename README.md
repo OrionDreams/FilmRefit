@@ -2,6 +2,8 @@
 
 FilmRefit is a desktop transcoding tool for creating timecode-preserving proxies and mezzanine media for post-production workflows.
 
+![FilmRefit.jpg](presentation-media/FilmRefit.jpg)
+
 ## Overview
 
 FilmRefit combines an Avalonia desktop interface with a Python/FFmpeg transcoding engine. It is built for camera-media preparation, especially Sony mirrorless footage, with a focus on preserving original source timecode through proxy and high-quality intermediate generation.
