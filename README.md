@@ -2,6 +2,7 @@
 
 FilmRefit is a desktop transcoding tool for creating timecode-preserving proxies and mezzanine media for post-production workflows.
 
+
 ![FilmRefit.jpg](presentation-media/FilmRefit.jpg)
 
 ## Overview
