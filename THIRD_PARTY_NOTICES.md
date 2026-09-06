@@ -30,12 +30,12 @@ libraries. Those incorporated libraries remain subject to their respective licen
 
 ### Windows x64
 
-Official FilmRefit Windows x64 releases use a pinned BtbN FFmpeg-Builds GPL static
-build from the FFmpeg 9.0 release branch:
+Official FilmRefit Windows x64 releases use the maintained BtbN FFmpeg-Builds GPL
+static alias for the FFmpeg 9.0 release branch:
 
-- FFmpeg base version: 9.0.1
-- BtbN revision: `n9.0.1-6-g9d4ca21220`
-- BtbN release: `autobuild-2026-08-20-13-45`
+- FFmpeg branch: 9.0
+- BtbN release: `latest`
+- BtbN archive: `ffmpeg-n9.0-latest-win64-gpl-9.0.zip`
 - Variant: `gpl`
 - Linking: static
 
@@ -48,12 +48,12 @@ Project:
 
 ### Linux x64
 
-Official FilmRefit Linux x64 releases use the corresponding pinned BtbN GPL static
-build:
+Official FilmRefit Linux x64 releases use the corresponding maintained BtbN GPL static
+alias:
 
-- FFmpeg base version: 9.0.1
-- BtbN revision: `n9.0.1-6-g9d4ca21220`
-- BtbN release: `autobuild-2026-08-20-13-45`
+- FFmpeg branch: 9.0
+- BtbN release: `latest`
+- BtbN archive: `ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz`
 - Variant: `gpl`
 - Linking: static
 
