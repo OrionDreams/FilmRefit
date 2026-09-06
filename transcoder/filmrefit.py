@@ -15,6 +15,7 @@ from typing import Optional
 VAAPI_DEVICE = "/dev/dri/renderD129"
 EXTRA_HW_FRAMES = "128"
 FFMPEG_STATS_PERIOD_SECONDS = "5"
+__version__ = "0.1.0"
 
 
 def resolve_runtime_tool(name: str) -> str:
