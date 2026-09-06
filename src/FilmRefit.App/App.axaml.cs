@@ -26,7 +26,8 @@ public partial class App : Application
                 mediaProbe,
                 new TranscodeService(runtime),
                 playbackService,
-                new AvaloniaUserInteractionService());
+                new AvaloniaUserInteractionService(),
+                new ResolvePluginService(runtime));
             var cleanupStarted = 0;
             void Cleanup()
             {

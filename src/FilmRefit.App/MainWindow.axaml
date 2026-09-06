@@ -180,18 +180,20 @@
 
   <Grid RowDefinitions="Auto,*,Auto,210" Background="{StaticResource AppBackgroundBrush}">
     <Border Padding="20,14" Background="#15181E">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10">
         <StackPanel>
           <TextBlock Text="FilmRefit" FontSize="25" FontWeight="SemiBold"/>
           <TextBlock Text="{Binding RuntimeText}" Classes="muted"/>
         </StackPanel>
-        <Button Grid.Column="1" Content="Load files" Command="{Binding AddFilesCommand}"/>
-        <Button Grid.Column="2" Content="Load directory" Command="{Binding AddDirectoryCommand}"/>
-        <Button Grid.Column="3" Content="Load recursive" Command="{Binding AddDirectoryRecursiveCommand}"/>
+        <Button Grid.Column="1" Content="Load files" Command="{Binding AddFilesCommand}" IsVisible="{Binding IsMainScreenVisible}"/>
+        <Button Grid.Column="2" Content="Load directory" Command="{Binding AddDirectoryCommand}" IsVisible="{Binding IsMainScreenVisible}"/>
+        <Button Grid.Column="3" Content="Load recursive" Command="{Binding AddDirectoryRecursiveCommand}" IsVisible="{Binding IsMainScreenVisible}"/>
+        <Button Grid.Column="4" Content="Settings" Command="{Binding ShowSettingsCommand}" IsVisible="{Binding IsMainScreenVisible}"/>
+        <Button Grid.Column="5" Content="Back" Command="{Binding ShowMainCommand}" IsVisible="{Binding IsSettingsScreenVisible}"/>
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" Margin="14" ColumnDefinitions="490,*,250" ColumnSpacing="14">
+    <Grid Grid.Row="1" Margin="14" ColumnDefinitions="490,*,250" ColumnSpacing="14" IsVisible="{Binding IsMainScreenVisible}">
       <Border Classes="panel" Padding="12">
         <Grid RowDefinitions="Auto,*" RowSpacing="12">
           <Grid ColumnDefinitions="*,120" ColumnSpacing="16" VerticalAlignment="Center">
@@ -414,7 +416,7 @@
             Margin="14,0,14,14"
             Classes="panel"
             Padding="14"
-            IsVisible="{Binding IsProgressVisible}">
+            IsVisible="{Binding IsProgressPanelVisible}">
       <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
           <ProgressBar Minimum="0"
@@ -440,7 +442,7 @@
       </Grid>
     </Border>
 
-    <Border Grid.Row="3" Margin="14,0,14,14" Classes="panel" Padding="14">
+    <Border Grid.Row="3" Margin="14,0,14,14" Classes="panel" Padding="14" IsVisible="{Binding IsMainScreenVisible}">
       <Grid ColumnDefinitions="*,*,1.2*" ColumnSpacing="18">
         <StackPanel Spacing="8">
           <TextBlock Text="Proxy settings" FontSize="17" FontWeight="SemiBold"/>
@@ -470,5 +472,71 @@
         </Grid>
       </Grid>
     </Border>
+
+    <Grid Grid.Row="1"
+          Grid.RowSpan="3"
+          Margin="14"
+          IsVisible="{Binding IsSettingsScreenVisible}">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="14" MaxWidth="900">
+          <TextBlock Text="Settings" FontSize="28" FontWeight="SemiBold"/>
+
+          <Border Classes="panel" Padding="18">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+              <TextBlock Text="DaVinci Resolve integration" FontSize="20" FontWeight="SemiBold"/>
+              <TextBlock Grid.Row="1"
+                         Text="Install FilmRefit's Resolve utility script, then restart Resolve and run it from Workspace -> Scripts -> FilmRefit Proxy Linker."
+                         Classes="secondary"
+                         TextWrapping="Wrap"/>
+
+              <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <TextBlock Text="Script" Classes="muted" VerticalAlignment="Center" MinWidth="120"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding ResolvePluginScriptName}"
+                         IsReadOnly="True"/>
+              </Grid>
+
+              <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <TextBlock Text="Install folder" Classes="muted" VerticalAlignment="Center" MinWidth="120"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding ResolvePluginScriptsDirectory}"
+                         IsReadOnly="True"/>
+              </Grid>
+
+              <Grid Grid.Row="4" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <TextBlock Text="Bundled source" Classes="muted" VerticalAlignment="Center" MinWidth="120"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding ResolvePluginSourcePath}"
+                         IsReadOnly="True"/>
+              </Grid>
+
+              <Grid Grid.Row="5" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <TextBlock Text="Checked folders" Classes="muted" VerticalAlignment="Top" MinWidth="120"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding ResolvePluginCandidateFoldersText}"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         MinHeight="76"
+                         TextWrapping="Wrap"/>
+              </Grid>
+
+              <Grid Grid.Row="6" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                <Button Classes="primary"
+                        Content="Install Resolve script"
+                        Command="{Binding InstallResolvePluginCommand}"/>
+                <Button Grid.Column="1"
+                        Content="Open scripts folder"
+                        Command="{Binding OpenResolveScriptsFolderCommand}"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding ResolvePluginStatusText}"
+                           Classes="secondary"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+              </Grid>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
   </Grid>
 </Window>

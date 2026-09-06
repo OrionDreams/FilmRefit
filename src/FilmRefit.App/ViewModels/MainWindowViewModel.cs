@@ -47,6 +47,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly TranscodeService _transcodeService;
     private readonly PreviewPlaybackService _playbackService;
     private readonly IUserInteractionService _userInteraction;
+    private readonly ResolvePluginService _resolvePluginService;
     private readonly ObservableCollection<VideoClipViewModel> _clips = [];
     private readonly object _pendingTranscodeLogLock = new();
     private readonly Queue<string> _logLines = new();
@@ -80,6 +81,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(TogglePlaybackCommand))]
     [NotifyCanExecuteChangedFor(nameof(StepPreviousFrameCommand))]
     [NotifyCanExecuteChangedFor(nameof(StepNextFrameCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ShowSettingsCommand))]
     private bool _isProcessing;
 
     [ObservableProperty]
@@ -158,19 +160,25 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _hasBatchError;
 
+    [ObservableProperty]
+    private bool _isSettingsScreenVisible;
+
     public MainWindowViewModel(
         FilmRefitRuntime runtime,
         MediaProbeService mediaProbe,
         TranscodeService transcodeService,
         PreviewPlaybackService playbackService,
-        IUserInteractionService userInteraction)
+        IUserInteractionService userInteraction,
+        ResolvePluginService resolvePluginService)
     {
         _runtime = runtime;
         _mediaProbe = mediaProbe;
         _transcodeService = transcodeService;
         _playbackService = playbackService;
         _userInteraction = userInteraction;
+        _resolvePluginService = resolvePluginService;
         SelectedClips.CollectionChanged += OnSelectedClipsChanged;
+        RefreshResolvePluginStatus();
     }
 
     public ObservableCollection<DirectoryGroupViewModel> DirectoryGroups { get; } = [];
@@ -182,6 +190,21 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public IReadOnlyList<double> PlaybackRates { get; } = [0.5, 1, 2, 4, 8];
 
     public bool HasSelectedClip => SelectedClip is not null;
+
+    public bool IsMainScreenVisible => !IsSettingsScreenVisible;
+
+    public bool IsProgressPanelVisible => IsMainScreenVisible && IsProgressVisible;
+
+    [ObservableProperty]
+    private string _resolvePluginStatusText = "";
+
+    public string ResolvePluginScriptName => ResolvePluginService.ScriptFileName;
+
+    public string ResolvePluginSourcePath => _resolvePluginService.SourceScriptPath;
+
+    public string ResolvePluginScriptsDirectory => _resolvePluginService.ScriptsDirectory;
+
+    public string ResolvePluginCandidateFoldersText => string.Join(Environment.NewLine, _resolvePluginService.CandidateScriptsDirectories);
 
     public string RuntimeText => _runtime.UsesBundledTranscoderExecutable
         ? $"Transcoder: {_runtime.TranscoderExecutable} | FFmpeg: {_runtime.FfmpegExecutable}"
@@ -289,6 +312,55 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return RunTranscodeBatchAsync(TranscodeMode.Mezzanine);
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenSettings))]
+    private void ShowSettings()
+    {
+        if (IsPlaybackRunning)
+        {
+            PausePlayback();
+        }
+
+        IsSettingsScreenVisible = true;
+        RefreshResolvePluginStatus();
+    }
+
+    [RelayCommand]
+    private void ShowMain()
+    {
+        IsSettingsScreenVisible = false;
+    }
+
+    [RelayCommand]
+    private async Task InstallResolvePluginAsync()
+    {
+        try
+        {
+            _resolvePluginService.Install();
+            RefreshResolvePluginStatus();
+            await _userInteraction.ShowNoticeAsync(
+                "Resolve script installed",
+                $"Installed {ResolvePluginService.ScriptFileName}.\n\nRestart DaVinci Resolve, then run Workspace -> Scripts -> FilmRefit Proxy Linker.");
+        }
+        catch (Exception exc)
+        {
+            await _userInteraction.ShowNoticeAsync("Resolve script install failed", exc.Message);
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenResolveScriptsFolderAsync()
+    {
+        try
+        {
+            _resolvePluginService.OpenScriptsDirectory();
+            RefreshResolvePluginStatus();
+        }
+        catch (Exception exc)
+        {
+            await _userInteraction.ShowNoticeAsync("Could not open Resolve scripts folder", exc.Message);
+        }
+    }
+
     private bool CanLoadFiles() => !IsProcessing;
 
     private bool CanCreateOutput() => !IsProcessing && GetActionClips().Count > 0;
@@ -296,6 +368,26 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool CanTogglePlayback() => CanUsePlayback && !IsProcessing;
 
     private bool CanUsePlaybackControls() => CanUsePlayback && !IsProcessing;
+
+    private bool CanOpenSettings() => !IsProcessing;
+
+    private void RefreshResolvePluginStatus()
+    {
+        ResolvePluginStatusText = _resolvePluginService.IsInstalled
+            ? $"Installed: {_resolvePluginService.InstalledScriptPath}"
+            : $"Not installed. Target: {_resolvePluginService.ScriptsDirectory}";
+    }
+
+    partial void OnIsSettingsScreenVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsMainScreenVisible));
+        OnPropertyChanged(nameof(IsProgressPanelVisible));
+    }
+
+    partial void OnIsProgressVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsProgressPanelVisible));
+    }
 
     private async Task AddClipPathsAsync(IEnumerable<string> paths)
     {
