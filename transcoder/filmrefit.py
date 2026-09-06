@@ -522,6 +522,7 @@ def build_ffmpeg_command(
     codec: str,
     mode: str,
     timecode: Optional[str],
+    camera: Optional[str] = None,
 ) -> list[str]:
 
     cmd = [
@@ -614,6 +615,12 @@ def build_ffmpeg_command(
     if timecode:
         cmd += [
             "-timecode", timecode,
+        ]
+
+    if camera:
+        cmd += [
+            "-movflags", "use_metadata_tags",
+            "-metadata", f"com.apple.quicktime.make={camera}",
         ]
 
     cmd.append(str(output_path))
@@ -829,6 +836,7 @@ def process_file(
         codec=codec,
         mode=mode,
         timecode=output_timecode,
+        camera=probe.get("camera"),
     )
 
     try:
