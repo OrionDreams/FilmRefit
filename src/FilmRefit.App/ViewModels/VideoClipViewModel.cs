@@ -65,6 +65,8 @@ public partial class VideoClipViewModel : ObservableObject
 
     public double? DurationSeconds { get; private set; }
 
+    public long? VideoFrameCount { get; private set; }
+
     public VideoClipViewModel(string path)
     {
         Path = path;
@@ -111,6 +113,7 @@ public partial class VideoClipViewModel : ObservableObject
     {
         FrameRateValue = metadata.FrameRateValue;
         DurationSeconds = metadata.DurationSeconds;
+        VideoFrameCount = metadata.VideoFrameCount;
         Resolution = metadata.Resolution;
         FrameRate = metadata.FrameRate;
         Duration = metadata.Duration;

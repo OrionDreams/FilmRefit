@@ -1,4 +1,5 @@
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -41,6 +42,60 @@ class FilmRefitCommandTests(unittest.TestCase):
         )
 
         self.assertNotIn("com.apple.quicktime.make=", command)
+
+    def test_half_step_sony_timecode_matches_ffprobe_double_frame_number(self):
+        filmrefit = load_filmrefit_module()
+
+        self.assertTrue(
+            filmrefit.timecodes_equivalent(
+                "09:50:58:38",
+                "09:50:58;19",
+                "true",
+            )
+        )
+
+    def test_half_step_sony_timecode_expands_to_full_rate_frame_number(self):
+        filmrefit = load_filmrefit_module()
+
+        self.assertEqual(
+            "09:50:58;38",
+            filmrefit.expand_half_step_timecode("09:50:58;19"),
+        )
+
+    def test_half_step_sony_timecode_detects_real_mismatch(self):
+        filmrefit = load_filmrefit_module()
+
+        self.assertFalse(
+            filmrefit.timecodes_equivalent(
+                "09:50:58:40",
+                "09:50:58;19",
+                "true",
+            )
+        )
+
+    def test_failed_output_path_adds_failed_suffix_after_output_kind(self):
+        filmrefit = load_filmrefit_module()
+
+        self.assertEqual(
+            Path("C2804_PROXY_FAILED.mov"),
+            filmrefit.build_failed_output_path(Path("C2804_PROXY.mov")),
+        )
+        self.assertEqual(
+            Path("C2804_MEZZANINE_FAILED.mov"),
+            filmrefit.build_failed_output_path(Path("C2804_MEZZANINE.mov")),
+        )
+
+    def test_failed_output_path_avoids_existing_failed_file(self):
+        filmrefit = load_filmrefit_module()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "C2804_PROXY.mov"
+            (Path(temp_dir) / "C2804_PROXY_FAILED.mov").touch()
+
+            self.assertEqual(
+                Path(temp_dir) / "C2804_PROXY_FAILED_1.mov",
+                filmrefit.build_failed_output_path(output_path),
+            )
 
 
 if __name__ == "__main__":

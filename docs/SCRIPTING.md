@@ -439,6 +439,11 @@ Therefore:
 - `:` means NDF
 - `;` means DF
 - DF/NDF must be detected correctly, not guessed purely from FPS
+- for Sony `halfStep="true"` clips, the decoded sidecar frame number is
+  half-rate LTC and must be doubled before writing MOV timecode for 59.94p
+  proxies. Example: Sony sidecar `09:50:58;19` corresponds to embedded
+  source TC `09:50:58:38`, so the proxy should be written as
+  `09:50:58;38`.
 
 ### Strong user requirements
 
@@ -485,6 +490,18 @@ C2787.MP4
 ffprobe textual TC: 05:48:34:10
 Resolve: 59.940 DF
 desired MOV proxy TC: 05:48:34;10
+```
+
+For newer 59.94p Sony clips with `tcFps="30"` and `halfStep="true"`, ffprobe
+may expose the source RTMD timecode with a full-rate frame number while the XML
+sidecar stores half-rate LTC. Preserve the DF separator from Sony XML, but
+expand the frame number to the full-rate MOV timecode value before writing the
+proxy. Observed examples:
+
+```text
+C2804 sidecar: 08:01:58;18 -> proxy MOV TC: 08:01:58;36
+C2805 sidecar: 08:56:36;28 -> proxy MOV TC: 08:56:36;56
+C2807 sidecar: 09:50:58;19 -> proxy MOV TC: 09:50:58;38
 ```
 
 If Sony metadata parsing is uncertain, do not guess DF/NDF from frame rate. For non-Sony files, a standard embedded metadata timecode such as MOV/MP4 `tmcd` may still be used directly when ffprobe exposes it.
@@ -588,7 +605,8 @@ When input is a directory:
 - skip output if expected output already exists and is non-empty
 - if output exists but is empty, remove it and retry
 - if one transcode fails:
-  - remove partial output
+  - rename partial output to `<stem>_<PROXY|MEZZANINE>_FAILED.<ext>` for inspection
+  - add a numeric suffix if a failed output already exists
   - continue to next input
 - print batch summary:
   - successful
@@ -606,8 +624,8 @@ Sequential processing is intentional:
 If input is one file:
 - process it directly
 - if output already exists, treat as an error rather than silently skipping
-- if transcode fails, delete partial output
-- Ctrl+C should delete partial output and exit cleanly
+- if transcode fails, rename partial output to `<stem>_<PROXY|MEZZANINE>_FAILED.<ext>`
+- Ctrl+C should preserve the partial output with the same failed-output naming
 
 ---
 
@@ -872,7 +890,7 @@ Desired behavior for other cameras:
 
 ### 5. Better validation
 
-After successful encode, validate generated proxies and mezzanines before reporting success in the Avalonia wrapper. Probe the output through the Python probe interface and compare its duration with the original clip duration. Allow up to one second of difference because container duration metadata can differ in the hundredths-of-a-second range, especially on 59.94/60 fps footage.
+After successful encode, validate generated proxies and mezzanines before reporting success in the Avalonia wrapper. Probe the output through the Python probe interface and compare video frame counts exactly when both source and output expose stream `nb_frames`. If frame counts are unavailable, compare duration exactly as a fallback.
 
 If duration validation fails:
 - mark the per-file Status row as failed
@@ -922,7 +940,7 @@ Defaults should preserve the current known-working setup.
 - Do not guess DF/NDF from frame rate alone.
 - Do not use `/dev/dri/renderD128`.
 - Prefer concrete, direct behavior over hidden magic.
-- Scripts should fail safely and remove partial outputs.
+- Scripts should fail safely and preserve partial outputs with `_FAILED` names for inspection.
 - Batch processing should continue after individual failures.
 - User is comfortable with Python and FFmpeg.
 

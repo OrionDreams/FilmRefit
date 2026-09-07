@@ -11,6 +11,7 @@ public sealed record VideoMetadata(
     int? Height,
     double? FrameRateValue,
     double? DurationSeconds,
+    long? VideoFrameCount,
     string Resolution,
     string FrameRate,
     string Duration,
@@ -57,12 +58,14 @@ public sealed class MediaProbeService
 
         var frameRateValue = ParseFrameRate(ReadString(root, "avg_fps"), ReadString(root, "fps"));
         var durationSeconds = ParseDurationSeconds(duration);
+        var videoFrameCount = ReadLong(root, "video_frames");
 
         return new VideoMetadata(
             width,
             height,
             frameRateValue,
             durationSeconds,
+            videoFrameCount,
             width is not null && height is not null ? $"{width} x {height}" : "Unknown",
             FormatFrameRate(frameRateValue, ReadString(root, "avg_fps"), ReadString(root, "fps")),
             FormatDuration(duration),
@@ -158,6 +161,21 @@ public sealed class MediaProbeService
         {
             JsonValueKind.Number when property.TryGetInt32(out var value) => value,
             JsonValueKind.String when int.TryParse(property.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) => value,
+            _ => null
+        };
+    }
+
+    private static long? ReadLong(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.Number when property.TryGetInt64(out var value) => value,
+            JsonValueKind.String when long.TryParse(property.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) => value,
             _ => null
         };
     }

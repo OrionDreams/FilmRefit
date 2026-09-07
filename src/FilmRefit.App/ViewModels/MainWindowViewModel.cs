@@ -19,7 +19,7 @@ namespace FilmRefit.App.ViewModels;
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private const int MaximumDisplayedLogLines = 2000;
-    private const double OutputDurationToleranceSeconds = 1.0;
+    private const double OutputDurationToleranceSeconds = 0.0;
 
     private static readonly TimeSpan MinimumPreviewRenderInterval = TimeSpan.FromSeconds(1.0 / 30);
     private static readonly TimeSpan TranscodeLogFlushInterval = TimeSpan.FromMilliseconds(100);
@@ -484,7 +484,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 if (succeeded)
                 {
                     clip.Status = mode == TranscodeMode.Proxy ? "Validating proxy" : "Validating mezzanine";
-                    errorText = await ValidateOutputDurationAsync(clip, outputPath, _shutdownCancellation.Token);
+                    errorText = await ValidateOutputAsync(clip, outputPath, _shutdownCancellation.Token);
                     succeeded = string.IsNullOrWhiteSpace(errorText);
                 }
 
@@ -905,7 +905,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             : $"{_processingClip.FileName}: {status}";
     }
 
-    private async Task<string> ValidateOutputDurationAsync(
+    private async Task<string> ValidateOutputAsync(
         VideoClipViewModel sourceClip,
         string outputPath,
         CancellationToken cancellationToken)
@@ -916,15 +916,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         var sourceDuration = sourceClip.DurationSeconds;
-        if (sourceDuration is not > 0)
+        var sourceFrameCount = sourceClip.VideoFrameCount;
+        if (sourceDuration is not > 0 || sourceFrameCount is not > 0)
         {
             try
             {
-                sourceDuration = (await _mediaProbe.ProbeAsync(sourceClip.Path, cancellationToken)).DurationSeconds;
+                var sourceMetadata = await _mediaProbe.ProbeAsync(sourceClip.Path, cancellationToken);
+                sourceDuration = sourceMetadata.DurationSeconds;
+                sourceFrameCount = sourceMetadata.VideoFrameCount;
             }
             catch (Exception exc) when (exc is not OperationCanceledException)
             {
-                return $"Could not validate duration: original probe failed ({exc.Message})";
+                return $"Could not validate output: original probe failed ({exc.Message})";
             }
         }
 
@@ -948,8 +951,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return "Could not validate duration: output duration is unknown";
         }
 
-        var difference = Math.Abs(outputMetadata.DurationSeconds.Value - sourceDuration.Value);
-        if (difference <= OutputDurationToleranceSeconds)
+        if (sourceFrameCount is > 0 && outputMetadata.VideoFrameCount is > 0 && sourceFrameCount != outputMetadata.VideoFrameCount)
+        {
+            var frameDifference = Math.Abs(outputMetadata.VideoFrameCount.Value - sourceFrameCount.Value);
+            return "Frame count mismatch: "
+                + $"original {sourceFrameCount.Value:N0}, "
+                + $"output {outputMetadata.VideoFrameCount.Value:N0}, "
+                + $"difference {frameDifference:N0} {PluralizeFrame(frameDifference)}";
+        }
+
+        var durationDifference = Math.Abs(outputMetadata.DurationSeconds.Value - sourceDuration.Value);
+        if (durationDifference <= OutputDurationToleranceSeconds)
         {
             return "";
         }
@@ -957,8 +969,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return "Duration mismatch: "
             + $"original {FormatDuration(TimeSpan.FromSeconds(sourceDuration.Value))}, "
             + $"output {FormatDuration(TimeSpan.FromSeconds(outputMetadata.DurationSeconds.Value))}, "
-            + $"difference {FormatDurationWithSeconds(TimeSpan.FromSeconds(difference))}";
+            + $"difference {FormatDurationWithSeconds(TimeSpan.FromSeconds(durationDifference))}";
     }
+
+    private static string PluralizeFrame(long count) => count == 1 ? "frame" : "frames";
 
     private static string ExtractTranscodeFailureMessage(ProcessResult result, string inputPath, TranscodeMode mode)
     {
@@ -1367,6 +1381,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             ParseResolutionPart(clip.Resolution, 1),
             clip.FrameRateValue,
             clip.DurationSeconds,
+            clip.VideoFrameCount,
             clip.Resolution,
             clip.FrameRate,
             clip.Duration,

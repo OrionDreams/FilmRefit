@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -78,15 +79,7 @@ def run_capture(cmd: list[str]) -> str:
 
 
 def format_command(cmd: list[str]) -> str:
-    parts = []
-
-    for arg in cmd:
-        if any(ch.isspace() for ch in arg):
-            parts.append(f'"{arg}"')
-        else:
-            parts.append(arg)
-
-    return " ".join(parts)
+    return " ".join(shlex.quote(arg) for arg in cmd)
 
 
 # ---------------------------------------------------------------------
@@ -161,6 +154,7 @@ def probe_file(path: Path) -> dict:
         "audio_codec": audio.get("codec_name") if audio else None,
         "fps": video.get("r_frame_rate"),
         "avg_fps": video.get("avg_frame_rate"),
+        "video_frames": video.get("nb_frames"),
         "pix_fmt": video.get("pix_fmt"),
         "bits_per_raw_sample": video.get("bits_per_raw_sample"),
         "color_space": video.get("color_space"),
@@ -426,6 +420,40 @@ def decode_sony_ltc_value(value: str) -> tuple[str, bool]:
     return f"{hh}:{mm}:{ss}{separator}{ff}", drop_frame
 
 
+def parse_timecode_components(timecode: str) -> Optional[tuple[int, int, int, int]]:
+    match = re.fullmatch(r"(\d{2}):(\d{2}):(\d{2})[:;](\d{2})", timecode.strip())
+    if not match:
+        return None
+
+    return tuple(int(part) for part in match.groups())
+
+
+def expand_half_step_timecode(timecode: str) -> str:
+    components = parse_timecode_components(timecode)
+    if components is None:
+        return timecode
+
+    hh, mm, ss, ff = components
+    separator = ";" if ";" in timecode else ":"
+    return f"{hh:02d}:{mm:02d}:{ss:02d}{separator}{ff * 2:02d}"
+
+
+def timecodes_equivalent(probe_timecode: str, sony_timecode: str, half_step: Optional[str]) -> bool:
+    probe = parse_timecode_components(probe_timecode)
+    sony = parse_timecode_components(sony_timecode)
+
+    if probe is None or sony is None:
+        return probe_timecode.replace(";", ":") == sony_timecode.replace(";", ":")
+
+    if probe[:3] != sony[:3]:
+        return False
+
+    if probe[3] == sony[3]:
+        return True
+
+    return half_step == "true" and probe[3] == sony[3] * 2
+
+
 def parse_sony_timecode(path: Path) -> Optional[dict]:
     """
     Parse Sony LTC metadata to get the actual DF/NDF state rather than
@@ -484,6 +512,9 @@ def parse_sony_timecode(path: Path) -> Optional[dict]:
         print(f"Warning: {exc}", file=sys.stderr)
         return None
 
+    if half_step == "true":
+        tc_string = expand_half_step_timecode(tc_string)
+
     return {
         "timecode": tc_string,
         "drop_frame": drop_frame,
@@ -510,6 +541,41 @@ def build_output_path(input_path: Path, mode: str) -> Path:
         )
 
     raise ValueError(f"unsupported mode: {mode}")
+
+
+def build_failed_output_path(output_path: Path) -> Path:
+    failed_path = output_path.with_name(
+        f"{output_path.stem}_FAILED{output_path.suffix}"
+    )
+
+    if not failed_path.exists():
+        return failed_path
+
+    for index in range(1, 1000):
+        candidate = output_path.with_name(
+            f"{output_path.stem}_FAILED_{index}{output_path.suffix}"
+        )
+        if not candidate.exists():
+            return candidate
+
+    raise RuntimeError(f"too many failed outputs exist for {output_path}")
+
+
+def preserve_failed_output(output_path: Path) -> None:
+    if not output_path.exists():
+        return
+
+    failed_path = build_failed_output_path(output_path)
+    print(f"Preserving failed output: {failed_path}")
+
+    try:
+        output_path.rename(failed_path)
+
+    except OSError as exc:
+        print(
+            f"Warning: unable to preserve failed output: {exc}",
+            file=sys.stderr,
+        )
 
 
 # ---------------------------------------------------------------------
@@ -645,15 +711,7 @@ def run_ffmpeg(cmd: list[str], output_path: Path) -> bool:
         print("\nInterrupted.")
 
         if output_path.exists():
-            print(f"Removing incomplete output: {output_path}")
-
-            try:
-                output_path.unlink()
-            except OSError as exc:
-                print(
-                    f"Warning: failed to remove partial output: {exc}",
-                    file=sys.stderr,
-                )
+            preserve_failed_output(output_path)
 
         raise
 
@@ -664,16 +722,7 @@ def run_ffmpeg(cmd: list[str], output_path: Path) -> bool:
     print("ERROR: transcode failed.")
 
     if output_path.exists():
-        print(f"Removing incomplete output: {output_path}")
-
-        try:
-            output_path.unlink()
-
-        except OSError as exc:
-            print(
-                f"Warning: unable to remove partial output: {exc}",
-                file=sys.stderr,
-            )
+        preserve_failed_output(output_path)
 
     return False
 
@@ -796,9 +845,11 @@ def process_file(
         print(f"TC source : {source_timecode['timecode_source']}")
 
         if source_timecode["drop_frame"] is not None and probe["timecode"]:
-            normalized = output_timecode.replace(";", ":")
-
-            if probe["timecode"] != normalized:
+            if not timecodes_equivalent(
+                probe["timecode"],
+                output_timecode,
+                source_timecode["half_step"],
+            ):
                 print()
                 print("WARNING: ffprobe and Sony LTC disagree:")
                 print(f"  ffprobe : {probe['timecode']}")
