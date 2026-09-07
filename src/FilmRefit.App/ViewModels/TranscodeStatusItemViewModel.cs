@@ -5,8 +5,13 @@ namespace FilmRefit.App.ViewModels;
 public sealed class TranscodeStatusItemViewModel
 {
     public TranscodeStatusItemViewModel(TranscodeMode mode, string fileName, bool succeeded, string errorText)
+        : this(mode == TranscodeMode.Proxy ? "Proxy" : "Mezzanine", fileName, succeeded, errorText)
     {
-        OperationText = mode == TranscodeMode.Proxy ? "Proxy" : "Mezzanine";
+    }
+
+    public TranscodeStatusItemViewModel(string operationText, string fileName, bool succeeded, string errorText)
+    {
+        OperationText = operationText;
         FileName = fileName;
         Succeeded = succeeded;
         ErrorText = errorText;

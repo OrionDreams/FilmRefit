@@ -75,6 +75,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateProxyCommand))]
     [NotifyCanExecuteChangedFor(nameof(CreateMezzanineCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RepairSelectedOutputTimecodeCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddFilesCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddDirectoryCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddDirectoryRecursiveCommand))]
@@ -129,6 +130,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _mezzanineButtonText = "Create mezzanine";
+
+    [ObservableProperty]
+    private string _repairTimecodeButtonText = "Repair output timecode";
 
     [ObservableProperty]
     private string _selectionText = "0 selected";
@@ -194,6 +198,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public bool IsMainScreenVisible => !IsSettingsScreenVisible;
 
     public bool IsProgressPanelVisible => IsMainScreenVisible && IsProgressVisible;
+
+    public bool CanShowRepairTimecodeAction => CanRepairSelectedOutputTimecode();
 
     [ObservableProperty]
     private string _resolvePluginStatusText = "";
@@ -312,6 +318,61 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return RunTranscodeBatchAsync(TranscodeMode.Mezzanine);
     }
 
+    [RelayCommand(CanExecute = nameof(CanRepairSelectedOutputTimecode))]
+    private async Task RepairSelectedOutputTimecodeAsync()
+    {
+        if (SelectedClip is not { } clip || !CanRepairSelectedOutputTimecode())
+        {
+            return;
+        }
+
+        if (IsPlaybackRunning)
+        {
+            PausePlayback();
+        }
+
+        IsProcessing = true;
+        clip.Status = "Repairing timecode";
+        StatusText = $"Repairing timecode for {clip.FileName}.";
+        AppendLog("");
+        AppendLog($"{clip.FileName}: starting timecode repair");
+
+        try
+        {
+            var result = await _transcodeService.RepairTimecodeAsync(clip.Path, OnTranscodeLogLine, _shutdownCancellation.Token);
+            await Dispatcher.UIThread.InvokeAsync(FlushPendingTranscodeLogLines);
+
+            var succeeded = result.ExitCode == 0;
+            var errorText = succeeded ? "" : ExtractRepairFailureMessage(result, clip.Path);
+
+            if (succeeded)
+            {
+                var metadata = await _mediaProbe.ProbeAsync(clip.Path, _shutdownCancellation.Token);
+                clip.ApplyMetadata(metadata);
+                clip.Status = "Ready";
+                StatusText = $"Repaired timecode for {clip.FileName}.";
+                AppendLog($"{clip.FileName}: timecode repair complete");
+                ResetPlaybackState(clip);
+            }
+            else
+            {
+                clip.Status = "Repair failed";
+                StatusText = $"Timecode repair failed for {clip.FileName}.";
+                AppendLog($"{clip.FileName}: timecode repair failed: {errorText}");
+            }
+
+            TranscodeStatusItems.Insert(0, new TranscodeStatusItemViewModel("Timecode Repair", clip.FileName, succeeded, errorText));
+        }
+        catch (OperationCanceledException) when (_shutdownCancellation.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            IsProcessing = false;
+            RefreshActionState();
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanOpenSettings))]
     private void ShowSettings()
     {
@@ -364,6 +425,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool CanLoadFiles() => !IsProcessing;
 
     private bool CanCreateOutput() => !IsProcessing && GetActionClips().Count > 0;
+
+    private bool CanRepairSelectedOutputTimecode()
+    {
+        return !IsProcessing
+            && SelectedClip is { OutputKind: TranscoderOutputKind.Proxy or TranscoderOutputKind.Mezzanine };
+    }
 
     private bool CanTogglePlayback() => CanUsePlayback && !IsProcessing;
 
@@ -583,11 +650,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         MezzanineButtonText = count <= 1 ? "Create mezzanine" : $"Create {count} mezzanines";
         CreateProxyCommand.NotifyCanExecuteChanged();
         CreateMezzanineCommand.NotifyCanExecuteChanged();
+        RepairSelectedOutputTimecodeCommand.NotifyCanExecuteChanged();
+        RepairTimecodeButtonText = SelectedClip?.OutputKind switch
+        {
+            TranscoderOutputKind.Proxy => "Repair proxy timecode",
+            TranscoderOutputKind.Mezzanine => "Repair mezzanine timecode",
+            _ => "Repair output timecode"
+        };
+        OnPropertyChanged(nameof(CanShowRepairTimecodeAction));
     }
 
     partial void OnSelectedClipChanged(VideoClipViewModel? value)
     {
         OnPropertyChanged(nameof(HasSelectedClip));
+        OnPropertyChanged(nameof(CanShowRepairTimecodeAction));
         RefreshActionState();
     }
 
@@ -989,7 +1065,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return "Output already exists";
         }
 
-        var errorLine = lines.LastOrDefault(line =>
+        var errorLine = lines.LastOrDefault(IsImportantProcessError);
+        errorLine ??= lines.LastOrDefault(line =>
             line.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
             || line.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase));
         if (errorLine is null)
@@ -998,6 +1075,37 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         return TrimErrorPrefix(ShortenPaths(errorLine, inputPath, outputPath));
+    }
+
+    private static string ExtractRepairFailureMessage(ProcessResult result, string inputPath)
+    {
+        var lines = EnumerateProcessLines(result)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+
+        var errorLine = lines.LastOrDefault(IsImportantProcessError);
+        errorLine ??= lines.LastOrDefault(line =>
+            line.StartsWith("Error:", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase));
+        if (errorLine is null)
+        {
+            errorLine = result.ExitCode == 0 ? "" : $"Failed with exit code {result.ExitCode}";
+        }
+
+        return TrimErrorPrefix(ShortenPaths(errorLine, inputPath));
+    }
+
+    private static bool IsImportantProcessError(string line)
+    {
+        return line.Contains("No space left on device", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Read-only file system", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("cannot write to output directory", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Error muxing", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Error writing trailer", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Failed to sync surface", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Failed to download frame", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Error while filtering", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<string> EnumerateProcessLines(ProcessResult result)

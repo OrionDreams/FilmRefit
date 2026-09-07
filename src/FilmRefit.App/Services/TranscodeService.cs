@@ -32,6 +32,28 @@ public sealed class TranscodeService
             cancellationToken);
     }
 
+    public Task<ProcessResult> RepairTimecodeAsync(
+        string inputPath,
+        Action<string>? log,
+        CancellationToken cancellationToken = default)
+    {
+        var arguments = new List<string>
+        {
+            "--repair-timecode",
+            "--replace",
+            inputPath
+        };
+
+        return ProcessRunner.RunAsync(
+            TranscoderExecutable(),
+            TranscoderArguments(arguments),
+            _runtime.RepositoryRoot,
+            log,
+            log,
+            _runtime.FfmpegDirectory,
+            cancellationToken);
+    }
+
     private string TranscoderExecutable() =>
         _runtime.TranscoderExecutable ?? _runtime.PythonExecutable;
 

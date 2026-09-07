@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional
@@ -543,22 +544,34 @@ def build_output_path(input_path: Path, mode: str) -> Path:
     raise ValueError(f"unsupported mode: {mode}")
 
 
-def build_failed_output_path(output_path: Path) -> Path:
-    failed_path = output_path.with_name(
-        f"{output_path.stem}_FAILED{output_path.suffix}"
+def build_suffixed_output_path(output_path: Path, suffix: str) -> Path:
+    suffixed_path = output_path.with_name(
+        f"{output_path.stem}{suffix}{output_path.suffix}"
     )
 
-    if not failed_path.exists():
-        return failed_path
+    if not suffixed_path.exists():
+        return suffixed_path
 
     for index in range(1, 1000):
         candidate = output_path.with_name(
-            f"{output_path.stem}_FAILED_{index}{output_path.suffix}"
+            f"{output_path.stem}{suffix}_{index}{output_path.suffix}"
         )
         if not candidate.exists():
             return candidate
 
-    raise RuntimeError(f"too many failed outputs exist for {output_path}")
+    raise RuntimeError(f"too many suffixed outputs exist for {output_path}")
+
+
+def build_failed_output_path(output_path: Path) -> Path:
+    return build_suffixed_output_path(output_path, "_FAILED")
+
+
+def build_timecode_fixed_output_path(output_path: Path) -> Path:
+    return build_suffixed_output_path(output_path, "_TCFIX")
+
+
+def build_bad_timecode_output_path(output_path: Path) -> Path:
+    return build_suffixed_output_path(output_path, "_BAD_TC")
 
 
 def preserve_failed_output(output_path: Path) -> None:
@@ -576,6 +589,48 @@ def preserve_failed_output(output_path: Path) -> None:
             f"Warning: unable to preserve failed output: {exc}",
             file=sys.stderr,
         )
+
+
+def ensure_directory_writable(directory: Path) -> bool:
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix=".filmrefit-write-test-",
+            dir=directory,
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+
+        temp_path.unlink()
+        return True
+
+    except OSError as exc:
+        print(
+            f"Error: cannot write to output directory {directory}: {exc}",
+            file=sys.stderr,
+        )
+        return False
+
+
+def resolve_source_for_output(output_path: Path) -> Path:
+    stem = output_path.stem
+    source_stem = None
+
+    for suffix in ("_PROXY", "_MEZZANINE"):
+        if stem.endswith(suffix):
+            source_stem = stem[:-len(suffix)]
+            break
+
+    if not source_stem:
+        raise RuntimeError(
+            "repair input must be a FilmRefit proxy or mezzanine file"
+        )
+
+    for extension in (".MP4", ".mp4", ".MOV", ".mov", ".MXF", ".mxf"):
+        candidate = output_path.with_name(f"{source_stem}{extension}")
+        if candidate.exists():
+            return candidate
+
+    raise RuntimeError(f"source clip not found next to {output_path}")
 
 
 # ---------------------------------------------------------------------
@@ -692,6 +747,25 @@ def build_ffmpeg_command(
     cmd.append(str(output_path))
 
     return cmd
+
+
+def build_timecode_repair_command(
+    input_path: Path,
+    output_path: Path,
+    timecode: str,
+) -> list[str]:
+    return [
+        FFMPEG,
+        "-nostdin",
+        "-y",
+        "-i", str(input_path),
+        "-map", "0:v:0",
+        "-map", "0:a?",
+        "-map_metadata", "0",
+        "-c", "copy",
+        "-timecode", timecode,
+        str(output_path),
+    ]
 
 
 # ---------------------------------------------------------------------
@@ -905,6 +979,94 @@ def process_file(
     return "success"
 
 
+def repair_timecode(
+    output_path: Path,
+    replace: bool,
+) -> bool:
+    source_path = resolve_source_for_output(output_path)
+    repaired_path = build_timecode_fixed_output_path(output_path)
+
+    if not ensure_directory_writable(repaired_path.parent):
+        return False
+
+    required_bytes = output_path.stat().st_size
+    available_bytes = shutil.disk_usage(repaired_path.parent).free
+
+    if available_bytes < required_bytes:
+        print(
+            "Error: not enough free space to repair timecode: "
+            f"need about {format_file_size(required_bytes)}, "
+            f"available {format_file_size(available_bytes)}",
+            file=sys.stderr,
+        )
+        return False
+
+    source_probe = probe_file(source_path)
+    source_timecode = resolve_source_timecode(source_path, source_probe)
+    output_timecode = source_timecode["timecode"]
+
+    if not output_timecode:
+        print(f"Error: no source timecode found for {source_path}", file=sys.stderr)
+        return False
+
+    print(f"Source    : {source_path}")
+    print(f"Input     : {output_path}")
+    print(f"Output    : {repaired_path}")
+    print(f"Timecode  : {output_timecode}")
+    print(f"TC source : {source_timecode['timecode_source']}")
+
+    command = build_timecode_repair_command(
+        input_path=output_path,
+        output_path=repaired_path,
+        timecode=output_timecode,
+    )
+
+    success = run_ffmpeg(command, repaired_path)
+    if not success:
+        return False
+
+    try:
+        repaired_probe = probe_file(repaired_path)
+
+    except Exception as exc:
+        print(f"Error probing repaired output: {exc}", file=sys.stderr)
+        return False
+
+    if repaired_probe["timecode"] != output_timecode:
+        print(
+            "Error: repaired output timecode mismatch: "
+            f"expected {output_timecode}, got {repaired_probe['timecode']}",
+            file=sys.stderr,
+        )
+        return False
+
+    if replace:
+        backup_path = build_bad_timecode_output_path(output_path)
+        print(f"Backup    : {backup_path}")
+
+        try:
+            output_path.rename(backup_path)
+            repaired_path.rename(output_path)
+
+        except OSError as exc:
+            print(f"Error replacing original output: {exc}", file=sys.stderr)
+            return False
+
+        print(f"Replaced  : {output_path}")
+
+    print("Done.")
+    return True
+
+
+def format_file_size(size: int) -> str:
+    value = float(size)
+    for unit in ("bytes", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return f"{value:.1f} {unit}" if unit != "bytes" else f"{size} bytes"
+
+        value /= 1024
+
+
 # ---------------------------------------------------------------------
 # Directory handling
 # ---------------------------------------------------------------------
@@ -1026,6 +1188,24 @@ def main() -> int:
     )
 
     parser.add_argument(
+        "--repair-timecode",
+        action="store_true",
+        help=(
+            "repair a FilmRefit proxy/mezzanine MOV timecode by reading "
+            "the matching source clip"
+        ),
+    )
+
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help=(
+            "with --repair-timecode, replace the input file after keeping "
+            "the original as *_BAD_TC"
+        ),
+    )
+
+    parser.add_argument(
         "input",
         type=Path,
         help="input video file or directory",
@@ -1059,6 +1239,14 @@ def main() -> int:
 
             return 0
 
+        if args.repair_timecode:
+            try:
+                return 0 if repair_timecode(input_path, args.replace) else 1
+
+            except Exception as exc:
+                print(f"Error repairing timecode: {exc}", file=sys.stderr)
+                return 1
+
         try:
             result = process_file(
                 input_path=input_path,
@@ -1076,6 +1264,9 @@ def main() -> int:
     # -------------------------------------------------------------
 
     if input_path.is_dir():
+        if args.repair_timecode:
+            die("--repair-timecode expects a single proxy or mezzanine file")
+
         return process_directory(
             directory=input_path,
             mode=args.mode,

@@ -852,10 +852,23 @@ that prints:
 
 Useful for already-generated proxies with wrong DF/NDF.
 
-Possible mode:
+Mode:
 
 ```bash
---repair-timecode
+./filmrefit.py --repair-timecode C2805_PROXY.mov
+```
+
+By default this writes:
+
+```text
+C2805_PROXY_TCFIX.mov
+```
+
+To preserve the original as `*_BAD_TC.mov` and put the repaired file back at
+the original proxy path:
+
+```bash
+./filmrefit.py --repair-timecode --replace C2805_PROXY.mov
 ```
 
 Behavior:
@@ -863,7 +876,8 @@ Behavior:
 - read correct source TC
 - stream-copy proxy video/audio
 - write corrected MOV `tmcd`
-- replace or write `_FIXED.mov`
+- verify the repaired timecode with ffprobe
+- replace only when `--replace` is specified; raw in-place MOV metadata mutation is avoided
 
 ### 3. Used-timeline-media transcoding
 

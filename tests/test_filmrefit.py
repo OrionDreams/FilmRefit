@@ -97,6 +97,47 @@ class FilmRefitCommandTests(unittest.TestCase):
                 filmrefit.build_failed_output_path(output_path),
             )
 
+    def test_timecode_repair_command_stream_copies_with_timecode(self):
+        filmrefit = load_filmrefit_module()
+
+        command = filmrefit.build_timecode_repair_command(
+            input_path=Path("C2805_PROXY.mov"),
+            output_path=Path("C2805_PROXY_TCFIX.mov"),
+            timecode="08:56:36;56",
+        )
+
+        self.assertIn("-c", command)
+        self.assertIn("copy", command)
+        self.assertIn("-timecode", command)
+        self.assertIn("08:56:36;56", command)
+
+    def test_resolve_source_for_proxy_output(self):
+        filmrefit = load_filmrefit_module()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "C2805.MP4"
+            proxy_path = Path(temp_dir) / "C2805_PROXY.mov"
+            source_path.touch()
+            proxy_path.touch()
+
+            self.assertEqual(
+                source_path,
+                filmrefit.resolve_source_for_output(proxy_path),
+            )
+
+    def test_bad_timecode_output_path_adds_backup_suffix(self):
+        filmrefit = load_filmrefit_module()
+
+        self.assertEqual(
+            Path("C2805_PROXY_BAD_TC.mov"),
+            filmrefit.build_bad_timecode_output_path(Path("C2805_PROXY.mov")),
+        )
+
+    def test_format_file_size_uses_binary_units(self):
+        filmrefit = load_filmrefit_module()
+
+        self.assertEqual("1.5 KiB", filmrefit.format_file_size(1536))
+
 
 if __name__ == "__main__":
     unittest.main()
