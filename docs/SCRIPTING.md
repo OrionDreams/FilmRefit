@@ -340,7 +340,7 @@ Current script uses:
 No definitive proof yet that larger values fully solve the issue.
 
 Important:
-- Failed outputs must be deleted.
+- Failed outputs must be renamed with `_FAILED` suffixes for inspection.
 - Batch mode should continue to the next clip after a failure.
 
 ---
