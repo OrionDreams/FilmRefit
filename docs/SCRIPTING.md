@@ -646,6 +646,7 @@ For proxy:
 - download 1080p NV12
 - convert to yuv422p
 - encode DNxHR SQ in software
+- after encode, validate output frame count in the Python transcoder
 
 ### H.264 source
 

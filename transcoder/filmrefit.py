@@ -768,6 +768,67 @@ def build_timecode_repair_command(
     ]
 
 
+def validate_output(
+    input_path: Path,
+    output_path: Path,
+    source_probe: dict,
+) -> Optional[str]:
+    try:
+        output_probe = probe_file(output_path)
+
+    except Exception as exc:
+        return f"output probe failed: {exc}"
+
+    source_frames = parse_int(source_probe.get("video_frames"))
+    output_frames = parse_int(output_probe.get("video_frames"))
+    if source_frames is not None and output_frames is not None and source_frames != output_frames:
+        difference = abs(source_frames - output_frames)
+        return (
+            "frame count mismatch: "
+            f"original {source_frames}, output {output_frames}, "
+            f"difference {difference} {'frame' if difference == 1 else 'frames'}"
+        )
+
+    source_duration = parse_float(source_probe.get("duration"))
+    output_duration = parse_float(output_probe.get("duration"))
+    if source_duration is None:
+        return "original duration is unknown"
+
+    if output_duration is None:
+        return "output duration is unknown"
+
+    if source_duration != output_duration:
+        return (
+            "duration mismatch: "
+            f"original {source_duration:.6f}s, output {output_duration:.6f}s, "
+            f"difference {abs(source_duration - output_duration):.6f}s"
+        )
+
+    return None
+
+
+def parse_int(value: object) -> Optional[int]:
+    if value is None:
+        return None
+
+    try:
+        return int(str(value))
+
+    except ValueError:
+        return None
+
+
+def parse_float(value: object) -> Optional[float]:
+    if value is None:
+        return None
+
+    try:
+        return float(str(value))
+
+    except ValueError:
+        return None
+
+
 # ---------------------------------------------------------------------
 # FFmpeg execution
 # ---------------------------------------------------------------------
@@ -971,6 +1032,13 @@ def process_file(
         raise
 
     if not success:
+        return "failed"
+
+    validation_error = validate_output(input_path, output_path, probe)
+    if validation_error:
+        print()
+        print(f"ERROR: output validation failed: {validation_error}")
+        preserve_failed_output(output_path)
         return "failed"
 
     print()
