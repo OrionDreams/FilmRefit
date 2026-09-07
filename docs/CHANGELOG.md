@@ -6,6 +6,10 @@ All notable changes to FilmRefit will be documented in this file.
 
 - Added a DaVinci Resolve Lua proxy linker and app Settings screen controls to install or open the Resolve scripts folder.
 - The proxy creation now includes the Camera info metadata in the proxy, if it is found in the original file.
+- Fixed Sony 59.94p `halfStep` timecode handling so generated MOV proxies write the full-rate drop-frame timecode value expected by DaVinci Resolve.
+- Added stricter output validation that compares video frame counts exactly when available and rejects mismatched proxy/mezzanine outputs.
+- Changed failed transcodes to preserve partial outputs as `_FAILED` files for inspection instead of deleting them.
+- Improved logged FFmpeg command quoting so timecodes containing semicolons can be copied safely into a shell.
 
 ## v0.1.0 - 2026-09-06
 
